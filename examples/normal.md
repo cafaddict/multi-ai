@@ -13,9 +13,11 @@ using [review.md](../prompts/review.md) and the actual maker's family route.
 If only the maker's family is available, the configured same-family fallback runs
 in a fresh independent checker session and records the limitation.
 
-The Lead examines the diff, reproduces meaningful acceptance checks, resolves
-blocking findings and records its judge decision before authorized integration.
-A revision produces a new commit and requires fresh approval.
+The Reviewer examines the diff and independently exercises accepted and rejected
+inputs, recording observations and log paths. The Lead checks that this evidence
+covers the agreed cases at the reviewed SHA, resolves blocking findings and records
+its judge decision before authorized integration. It requests further verification
+if a compatibility case is missing. A revision requires fresh approval.
 
 For a small localized implementation, the Lead might write the change itself.
 The behavior change still gets an independent Reviewer; its maker_id is the Lead's

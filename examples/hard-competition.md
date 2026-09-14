@@ -2,9 +2,10 @@
 
 User: "The CUDA path is intermittently 30% slower. Find the root cause and fix it."
 
-The Lead consults [SKILL.md](../SKILL.md) and establishes a reproducible workload,
-baseline commit, device/environment, warmup and repeated timing method on the
-workspace host. One slow sample does not establish a regression or its cause.
+The Lead consults [SKILL.md](../SKILL.md) and defines the measurement conditions:
+reproducible workload, baseline commit, device/environment, warmup and repeated
+timing method. Researchers gather measurements on the workspace host; one slow
+sample does not establish a regression or its cause.
 
 Independent hypotheses could distinguish synchronization from allocation behavior.
 The Lead may dispatch two Researcher lanes using the configured competition routes

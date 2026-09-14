@@ -25,9 +25,9 @@ flowchart TD
     Lead -->|"Independent hypotheses useful"| Competition["Separate solution lanes"]
     Competition --> Compare["Initial results complete; critique and compare"]
     Compare --> Lead
-    Local --> Review["Independent code review; prefer opposite family"]
+    Local --> Review["Independent review and checks; prefer opposite family"]
     Engineer --> Review
-    Review --> Judge["Lead: verify evidence and judge"]
+    Review --> Judge["Lead: assess evidence and judge"]
     Judge -->|"Exact SHA reviewed; blockers resolved"| Integrate["Lead integrates"]
     Judge -->|"Revision needed"| Lead
     Integrate --> Report

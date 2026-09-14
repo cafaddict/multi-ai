@@ -48,11 +48,12 @@ Across servers, verify native access to source and reports before dispatch;
 
 ## Lead and workers
 
-The [Lead](roles/lead.md) owns decomposition, dispatch, verification, the **judge
-phase**, and integration. Judge is not a spawned V1 role. Delegate bounded
+The [Lead](roles/lead.md) owns decomposition, dispatch, evidence sufficiency, the
+**judge phase**, and integration. Judge is not a spawned V1 role. Delegate bounded
 implementation and fixes to an [Engineer](roles/engineer.md) when useful; the Lead
 may make a localized change when coordination costs more than it adds. The Lead
 manages complex work and does not routinely take over delegated implementation.
+Group related execution into bounded worker tasks to limit handoff overhead.
 
 Prefer the session already holding the reproduction, measurement baseline or
 established cause when its role and launch settings fit. Otherwise hand off those
@@ -136,14 +137,24 @@ or [ReviewResult](schemas/review-result.schema.json), then reference the file wi
 `--report-path` on the live preamble's worker_done command. Keep its body short.
 Orca records a path; it does not upload, validate or certify the JSON. Preserve
 reports as evidence and do not overwrite a settled report during revisions.
+Keep relevant raw logs and benchmark artifacts accessible beside the reports;
+use existing check.result fields for concise observations and artifact paths.
+Record checks not performed and their limitations in risks or residual_risk.
+Retrieve detail on demand instead of copying full logs into each agent's context.
 
 Match report IDs to the authoritative Dispatch and read the actual file.
 WorkerResult ok means completed work; needs_revision/blocked means failure.
 A completed review with CHANGES_REQUESTED still has a succeeded lifecycle outcome;
 an incomplete review is failed. Neither lifecycle success nor changes_summary
-is evidence that code is correct. Inspect source, checks, exit codes and outputs;
-rerun meaningful acceptance checks independently. Missing required evidence,
-malformed reports or unverifiable identity prevents approval.
+is evidence that code is correct. Engineers run relevant builds, tests and benchmarks;
+Reviewers independently inspect source, exit codes and outputs and reproduce
+meaningful acceptance checks. The Lead assesses requirement coverage, evidence
+sufficiency and unresolved risks, checking identity and exact snapshot against
+Orca/Git state. It need not repeat a completed independent review or its checks.
+High risk, conflicting observations or insufficient evidence require targeted
+inspection or re-verification, performed by the Lead or assigned to a suitable
+worker. Missing required evidence, malformed reports or unverifiable identity
+prevents approval. A worker's summary alone is not evidence.
 Choose acceptance checks by the specific failure they detect and the observation
 that distinguishes failure from correct behavior. A passing command that does not
 exercise the relevant behavior is not acceptance evidence.
