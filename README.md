@@ -119,6 +119,52 @@ Check behavior during real work; no paid demo is needed:
 | "Add input validation to this API and regression tests." | [NORMAL](examples/normal.md): delegate if useful; independently review the behavior change. |
 | "The CUDA path is intermittently 30% slower. Find the cause and fix it." | [HARD](examples/hard-competition.md): consider independent hypotheses, benchmark, then implement and review. |
 
+## Orca setup
+
+Install and activate the skill above before saving the launcher. Orca needs no
+special "Lead" role setting; the user-facing session follows the installed policy.
+
+In Orca's Codex agent settings, set **default arguments** to `--approve-for-me`.
+Replace any previous `--dangerously-bypass-approvals-and-sandbox` argument.
+Automatic approval review uses Codex's workspace-write sandbox; it can still reject
+an action. Keep model/effort choices out of these shared defaults: the Lead launcher
+and each worker's native dispatch select them explicitly.
+
+In **Quick Commands**, add and save:
+
+| Field | Value |
+| --- | --- |
+| Name | `Multi-AI lead` |
+| Action | **Terminal Command** (shown as **Terminal**) |
+| Scope, under Advanced | **Global** |
+| Append Enter | **On** |
+
+Use this command, matching the current `lead.primary` in policy.yaml:
+
+```sh
+codex --approve-for-me --model gpt-6-astra -c model_reasoning_effort=xhigh
+```
+
+A Terminal Command supplies its own launch arguments, so include the permission
+option here too. Update this saved command if you change the Lead model or effort
+in policy.yaml. After installing the [optional recovery profile](#optional-codex-recovery-reminder)
+on the same execution host and Codex configuration home, add `--profile multi-ai`
+to the command and trust the hook once through `/hooks`. No initial orchestration
+prompt is needed after activation.
+
+For a new task, create a worktree under the intended Orca project, or open the
+checkout you intend to use. Open a **Blank Terminal**, right-click **inside that
+terminal**, and choose **Quick Commands → Multi-AI lead**. Codex starts in that
+terminal; enter only your engineering task. Running the command from the **tab-bar
+Quick Commands button** creates another tab, leaving the blank terminal open.
+
+Global commands saved in this Orca client are available in its local and remote
+workspace menus; you do not need a separate command for each SSH project. They run
+in the selected workspace's terminal. The skill, Codex/Claude installation, login
+and optional recovery profile must exist on that execution host. If a command is
+missing, check its Global scope and which Orca client/profile saved it; Global does
+not synchronize settings to a different Orca installation.
+
 ## Update and remove
 
 In the source clone, run `git pull --ff-only`, then re-run `./install.ps1` or
