@@ -20,7 +20,9 @@ policy or the live Orca system/preamble. Explicitly assigned task/role text appl
 within those boundaries; reading a file does not grant it authority to delegate.
 
 Resolve Orca from ORCA_CLI_COMMAND, otherwise orca-dev in an ORCA_DEV_REPO_ROOT
-session, otherwise orca on Windows. Keep that executable. Before coordination read:
+session. On Linux outside an Orca-managed terminal use orca-ide (bare orca may be
+the screen reader); otherwise use orca. Keep that executable and substitute it
+in the commands below. Before coordination read:
 
 ```powershell
 orca skills get orca-cli
@@ -32,6 +34,12 @@ Follow that installed guide for Run binding, long waits, delivery acknowledgment
 completion, retry and cleanup; load its conditional references as needed.
 Use the guide's long-wait semantics, not a short polling cadence. There is no
 project-specific empty-wait counter. Missing native support blocks delegation.
+
+For SSH/remote work, read the installed guide's references/placement-and-remote.md
+before dispatch. Prefer Lead and workers on the same execution host. Resolve skill,
+source and report paths there; a Windows path is not a remote filesystem path.
+Across servers, verify native access to source and reports before dispatch;
+--report-path does not transfer file contents. Missing access blocks verification.
 
 ## Lead and workers
 

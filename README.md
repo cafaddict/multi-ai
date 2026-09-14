@@ -2,8 +2,8 @@
 
 A small intelligence policy on top of Orca: **Policy -> Orca**.
 Orca owns processes, terminals, worktrees, tasks, messaging and persistence.
-This repository supplies instructions and result contracts, with no runtime code
-or installation dependencies.
+This repository supplies instructions and result contracts, with no orchestration
+runtime or package dependencies. Optional installers only register skill links.
 
 The Lead decomposes, dispatches, verifies, judges and integrates.
 The five roles are [Lead](roles/lead.md),
@@ -58,10 +58,48 @@ Orca. Dotted paths are optional investigation. Model and effort choices come fro
 
 ## Use and configuration
 
-Open a Lead session in Orca and ask it to read this SKILL.md, using an absolute
-path when working in another repository. No global skill installation is needed.
-Use the Lead route in [policy.yaml](policy.yaml) when launching; an existing
-session does not change models merely by reading the file.
+Clone this private repository on the machine where the agents run, using your
+GitHub credentials. Keep the clone in a stable location:
+
+```sh
+git clone --branch dev https://github.com/hyunyul-XCENA/multi-ai.git
+cd multi-ai
+```
+
+On Windows / PowerShell, run [install.ps1](install.ps1):
+
+```powershell
+.\install.ps1
+```
+
+On Linux/macOS, including an SSH host, run [install.sh](install.sh):
+
+```sh
+sh ./install.sh
+```
+
+The installers link this clone into `~/.agents/skills/multi-ai` for Codex and
+`~/.claude/skills/multi-ai` for Claude, following their
+[Codex](https://developers.openai.com/codex/skills/) and
+[Claude](https://code.claude.com/docs/en/skills#where-skills-live) discovery rules.
+Windows uses directory junctions without administrator rights; POSIX uses symlinks.
+Reruns accept matching links and refuse to replace existing files or other links.
+They install no agents or dependencies and change no permissions or model settings.
+`git pull --ff-only` in this clone updates the linked skill; no reinstall is needed.
+
+Start a new Lead session in Orca, in the **target project's** checkout. Invoke
+`$multi-ai` in Codex or `/multi-ai` in Claude, followed by the task. Without
+installation, ask the Lead to read this SKILL.md by absolute path instead.
+Use the Lead route in [policy.yaml](policy.yaml) when launching; reading the file
+does not change an existing session's model.
+
+For Orca SSH projects, install on the remote execution host, where Orca's CLI
+connection and the configured Codex/Claude launchers must already work. Local
+Windows installation does not register the skill remotely or copy credentials.
+Prefer Lead and workers on that host; consult the installed Orca placement guide
+for cross-server dispatch. Source and report files must remain accessible to the
+Lead. The examples use PowerShell syntax; use the host's shell and paths on Linux.
+Orca 1.4.202's `skills install` installs its bundled guides, not this repository.
 
 policy.yaml centralizes explicit agent/model/effort choices, role-specific
 fallbacks and opposite-family reviewer routes. The Lead passes those choices
