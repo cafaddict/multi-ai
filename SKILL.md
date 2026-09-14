@@ -55,6 +55,12 @@ a worker even if its provider is normally used for Lead.
 [Reviewer](roles/reviewer.md) are read-only by default; fixes need an Engineer task.
 These are role instructions, not an OS sandbox.
 
+After compaction or session resumption, follow [recover.md](prompts/recover.md)
+before acting. The optional Codex recovery profile injects that reminder at native
+SessionStart events; it never assigns a role or replaces Orca state. A worker keeps
+its Dispatch even when the parent uses this profile. Model routes still come from
+policy.yaml; the profile changes neither intelligence settings nor permissions.
+
 | Level | Routing decision |
 | --- | --- |
 | SIMPLE | Tiny, obvious, low-risk change: Lead acts directly, with no worker/review ceremony. |
@@ -69,6 +75,7 @@ criteria. Initial competitors see no sibling solution until both initial results
 are complete. Prefer parallel research when duplicate implementation adds no value.
 Concurrent implementations use separate **Orca** worktrees; verify the same base
 and distinct paths. Sequential work may share a checkout with exclusive ownership.
+When competition is justified, prepare the briefs with [competition.md](prompts/competition.md).
 
 ## Explicit intelligence routing
 
@@ -113,6 +120,7 @@ is evidence that code is correct. Inspect source, checks, exit codes and outputs
 rerun meaningful acceptance checks independently. Missing required evidence,
 malformed reports or unverifiable identity prevents approval.
 
+Prepare independent review with [review.md](prompts/review.md).
 Maker != checker, including a maker returning under a new Dispatch/role.
 Prefer a reviewer from the configured opposite family and verify the actual launch.
 Code review identifies the **full Git commit SHA**; verify HEAD, agreed base/diff
@@ -123,7 +131,9 @@ null snapshots; they need no cryptographic receipt.
 
 ## Lead's judge phase
 
-Use [judge.md](prompts/judge.md) and emit [JudgeResult](schemas/judge-result.schema.json).
+For delegated work, use [judge.md](prompts/judge.md) and emit
+[JudgeResult](schemas/judge-result.schema.json). SIMPLE ends with direct verification
+and a report to the human, without independent review or JudgeResult.
 Decide from requirements, observed code, tests, benchmarks, reproducible evidence,
 review findings and simplicity; worker confidence comes last. Never count votes.
 Account for every blocking finding affecting the selection: resolved with fresh
@@ -134,7 +144,9 @@ Missing/incomplete review or unresolved applicable blockers prevents integration
 
 SELECT is a plan/provisional choice. INTEGRATE requires independent review and
 objective checks of that exact commit, with all blockers accounted for.
-Use at most the configured revision rounds before reporting the remaining decision.
+Within the authorized scope, continue through implementation, review, needed fixes
+and verification without routine approval pauses. Stop and report an actual blocker,
+an out-of-scope decision or the configured revision-round limit.
 Only the Lead integrates through the authorized project workflow. Prefer
 fast-forward of the reviewed commit; changed review scope/base or any new combined
 commit requires renewed review and checks. Verify the actual integrated HEAD.

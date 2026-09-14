@@ -1,0 +1,10 @@
+# Native Codex profile template; install.ps1/install.sh append the host command.
+# Selected explicitly with --profile multi-ai. No model or permission overrides.
+[[hooks.SessionStart]]
+matcher = "^(startup|resume|compact)$"
+
+[[hooks.SessionStart.hooks]]
+type = "command"
+timeout = 5
+statusMessage = "Restoring Multi-AI context"
+additionalContextLimit = 400
