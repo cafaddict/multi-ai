@@ -54,6 +54,11 @@ implementation and fixes to an [Engineer](roles/engineer.md) when useful; the Le
 may make a localized change when coordination costs more than it adds. The Lead
 manages complex work and does not routinely take over delegated implementation.
 
+Prefer the session already holding the reproduction, measurement baseline or
+established cause when its role and launch settings fit. Otherwise hand off those
+facts and failed attempts. Context retention never overrides reviewer independence
+or the fresh sessions required for competition.
+
 Only the Lead creates workers; one generation, no grandchildren or worker-created
 Runs. Workers report further work to the Lead. A live Dispatch preamble identifies
 a worker even if its provider is normally used for Lead.
@@ -81,8 +86,11 @@ behavior change can end after direct checks; explain the choice briefly if uncle
 
 Competition is a policy, not a framework. Use it for uncertain causes, meaningful
 alternatives, concurrency/memory correctness, performance questions, high blast
-radius or low confidence. Freeze the same requirements, base commit and acceptance
-criteria. Initial competitors see no sibling solution until both initial results
+radius or low confidence. Start both initial competitors in fresh Orca agent
+sessions; the Lead coordinates rather than competes. Give both the same requirements,
+base commit, raw evidence and acceptance criteria, without inherited solution
+conclusions. A lane exposed to prior solutions is not an independent comparison.
+Initial competitors see no sibling solution until both initial results
 are complete. Prefer parallel research when duplicate implementation adds no value.
 Concurrent implementations use separate **Orca** worktrees; verify the same base
 and distinct paths. Sequential work may share a checkout with exclusive ownership.
@@ -136,6 +144,9 @@ an incomplete review is failed. Neither lifecycle success nor changes_summary
 is evidence that code is correct. Inspect source, checks, exit codes and outputs;
 rerun meaningful acceptance checks independently. Missing required evidence,
 malformed reports or unverifiable identity prevents approval.
+Choose acceptance checks by the specific failure they detect and the observation
+that distinguishes failure from correct behavior. A passing command that does not
+exercise the relevant behavior is not acceptance evidence.
 
 Prepare independent review with [review.md](prompts/review.md).
 Maker != checker, including Lead-authored changes and a maker returning under a

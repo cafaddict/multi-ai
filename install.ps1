@@ -1,7 +1,15 @@
-# Optional Codex recovery profile only. Install the skill with the skills CLI.
-param([string]$CodexConfigHome = $env:CODEX_HOME)
+# Global skill installation via the existing skills CLI; recovery is optional.
+param(
+    [switch]$RecoveryProfile,
+    [string]$CodexConfigHome = $env:CODEX_HOME
+)
 
 $ErrorActionPreference = 'Stop'
+& npx --yes skills add https://github.com/hyunyul-XCENA/multi-ai/tree/dev --skill multi-ai --agent codex claude-code --global --yes
+if ($LASTEXITCODE -ne 0) { throw "Global skill installation failed (exit $LASTEXITCODE)." }
+Write-Output 'Installed multi-ai globally for Codex and Claude Code. Start a new session on this host.'
+if (-not $RecoveryProfile) { return }
+
 $source = Get-Item -LiteralPath $PSScriptRoot
 $sourcePath = $source.FullName
 if ($source.LinkType) { $sourcePath = [IO.Path]::GetFullPath(@($source.Target)[0]) }
@@ -16,8 +24,9 @@ if (-not $CodexConfigHome) {
 $profilePath = Join-Path ([IO.Path]::GetFullPath($CodexConfigHome)) 'multi-ai.config.toml'
 $profileDirectory = Split-Path $profilePath
 # Encode only our literal file-read command to avoid nested shell/path quoting.
-$skillPathLiteral = $sourcePath.Replace("'", "''")
-$recoveryPathLiteral = (Join-Path $sourcePath 'prompts/recover.md').Replace("'", "''")
+$installedSkillPath = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.agents/skills/multi-ai'
+$skillPathLiteral = $installedSkillPath.Replace("'", "''")
+$recoveryPathLiteral = (Join-Path $installedSkillPath 'prompts/recover.md').Replace("'", "''")
 $readCommand = "[Console]::OutputEncoding = [Text.UTF8Encoding]::new(`$false); [Console]::WriteLine('Multi-AI skill directory: $skillPathLiteral'); Get-Content -Raw -Encoding UTF8 -LiteralPath '$recoveryPathLiteral' -ErrorAction Stop"
 $encodedCommand = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($readCommand))
 $hookCommand = "powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand $encodedCommand"

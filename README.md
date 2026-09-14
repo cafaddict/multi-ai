@@ -1,8 +1,8 @@
 # Multi-AI
 
-**Orca is the mechanism. Multi-AI is the policy.** Install this skill in an Orca
-project, then give Codex or Claude Code the task: "Fix this bug" or "Investigate
-this performance regression and fix it." No orchestration prompt or worker
+**Orca is the mechanism. Multi-AI is the policy.** Install once on the host
+where your Orca agents run, then give Codex or Claude Code the task: "Fix this bug"
+or "Investigate this performance regression and fix it." No orchestration prompt or worker
 commands are needed from the user.
 
 [SKILL.md](SKILL.md) owns shared rules; [policy.yaml](policy.yaml) owns model routes.
@@ -37,31 +37,58 @@ Paths are choices, not worker counts. The Lead creates every Orca worker.
 Architect covers structure and tradeoffs; Researcher gathers evidence and hypotheses.
 SKILL.md defines review and integration requirements, including Lead-authored code.
 
-## Install in a target project
+## Install once per host
 
-Run from the **target repository root on its execution host**, with working GitHub
-credentials for this private source. Use the existing [skills CLI](https://github.com/vercel-labs/skills),
-also used by Orca's bundled-skill installer. Node/npx is installation tooling;
-the installed skill has no package dependency.
+Clone this private repository using your GitHub credentials:
+
+```sh
+git clone --branch dev https://github.com/hyunyul-XCENA/multi-ai.git
+cd multi-ai
+```
+
+On Windows / PowerShell:
+
+```powershell
+./install.ps1
+```
+
+On Linux/macOS or an SSH host:
+
+```sh
+sh ./install.sh
+```
+
+Both scripts call the existing [skills CLI](https://github.com/vercel-labs/skills)
+with `--global`, `--skill multi-ai` and `--agent codex claude-code`. The CLI manages
+installation; the scripts contain no skill-copy or worker-launch implementation.
+Node/npx and GitHub access are needed for installation, not for running the skill.
+A failed CLI install stops the script. Re-running refreshes the global installation.
+
+Codex discovers `~/.agents/skills/multi-ai/`; Claude uses `~/.claude/skills/multi-ai/`.
+This covers all projects for that user on that host. Run once on Windows for local
+projects and once on each remote execution host; Windows installation is not remote
+installation. No project-by-project installation or recurring prompt is needed.
+
+For an intentionally project-scoped copy, use the CLI directly from the target root:
 
 ```sh
 npx --yes skills add https://github.com/hyunyul-XCENA/multi-ai/tree/dev --skill multi-ai --agent codex claude-code --yes
-npx --yes skills list --agent codex claude-code
 ```
 
-Project scope is the default. The CLI installs `.agents/skills/multi-ai/` and exposes
-it under `.claude/skills/multi-ai/` for Claude, managing links/copies and skills-lock.json.
-Review and commit the installed files and project guidance so Orca child worktrees
-and teammates receive them. Windows may use a junction/copy; verify both locations
-when checking out on another host.
+That creates `.agents/skills/multi-ai/`, the Claude entry and skills-lock.json.
+Commit those files if the project should distribute the skill. Prefer one scope to
+avoid duplicate discovery or personal Claude skill precedence. To switch an existing
+project copy to global, remove the project copy with `npx skills remove multi-ai --yes`
+from that project, then run the global installer.
 
 Without Node, copy SKILL.md, policy.yaml, roles/, prompts/ and schemas/ into both
-skill directories. Maintain both copies together. No script is needed to use them;
-the CLI is recommended for maintaining one canonical installation.
+user skill directories. Maintain both copies together; no script is needed to use them.
 
 ## Activate for ordinary requests
 
-Add this small section to the target's **AGENTS.md**, preserving other instructions:
+For consistent automatic use, add this once to Codex's **CODEX_HOME/AGENTS.md**
+(default `~/.codex/AGENTS.md`) and Claude's **~/.claude/CLAUDE.md**, preserving other
+instructions. These are user-level files on the execution host:
 
 ```markdown
 For non-trivial engineering work, consult the installed multi-ai skill and choose
@@ -69,11 +96,12 @@ the smallest useful workflow. Handle tiny edits directly. An active Orca worker
 Dispatch retains its assigned role and scope; it must not start a team.
 ```
 
-For Claude, add `@AGENTS.md` to **CLAUDE.md** if it does not already import it.
+For project-specific activation instead, use the project's AGENTS.md and import it
+with `@AGENTS.md` from its CLAUDE.md.
 [Codex](https://learn.chatgpt.com/docs/build-skills) discovers `.agents/skills`;
 [Claude](https://code.claude.com/docs/en/skills) uses `.claude/skills` and
 [CLAUDE.md imports](https://code.claude.com/docs/en/memory#agentsmd). Both can select
-skills from their descriptions; project guidance makes the intended use explicit.
+skills from their descriptions; the short routing instruction makes intended use explicit.
 Discovery is not a deterministic enforcement gate.
 
 Start your usual Codex or Claude session in the target Orca workspace and give
@@ -81,8 +109,9 @@ only the task. Saved Lead prompts can be shortened. Set Lead model/effort when
 launching; a skill cannot change an existing session's model or permissions.
 Explicit `$multi-ai` (Codex) or `/multi-ai` (Claude) remains available.
 
-Verify the project path in Codex `/skills` or Claude's skill list. Restart after
-adding project instructions. Check behavior during real work; no paid demo is needed:
+Verify the global path in Codex `/skills` or Claude's skill list, or run
+`npx skills list --global --agent codex claude-code`. Restart after adding instructions.
+Check behavior during real work; no paid demo is needed:
 
 | Task alone | Expected decision |
 | --- | --- |
@@ -92,29 +121,22 @@ adding project instructions. Check behavior during real work; no paid demo is ne
 
 ## Update and remove
 
-Update in the target repository:
+In the source clone, run `git pull --ff-only`, then re-run `./install.ps1` or
+`sh ./install.sh`. The scripts refresh the published global skill through the CLI.
+Review any custom edits in the installed policy before updating.
+
+To remove the global installation:
 
 ```sh
-npx --yes skills update multi-ai --project --yes
+npx --yes skills remove multi-ai --global --yes
 ```
 
-To remove the project installation:
-
-```sh
-npx --yes skills remove multi-ai --yes
-```
-
-Review updates in Git, including any project-specific policy.yaml changes. Removal
-also needs you to remove the Multi-AI routing paragraph; retain other project
-instructions/imports. Remove any saved invocation or recovery-profile option you
-no longer use. Manual-copy installations update/remove both copies.
-For local-source CLI installs, update by repeating the original add command;
-skills 1.5.26's update command skips local sources.
-
-For an old personal installation, remove `--profile multi-ai` from its launcher
-before running `npx --yes skills remove multi-ai --global --yes`. Install at project
-scope to avoid duplicate discovery or personal Claude skill precedence. The old
-install.ps1/install.sh skill-registration workflow is replaced by the skills CLI.
+Remove the Multi-AI routing paragraph from your user instructions and any saved
+invocation/profile option; preserve unrelated content. Remove only the generated
+multi-ai.config.toml if you installed the optional profile. For project-scoped
+installations use `npx skills update multi-ai --project --yes` or remove without
+`--global`. Local-source CLI installations update by repeating their add command;
+skills 1.5.26 skips them in update. Manual-copy installations maintain both copies.
 
 ## Routing and remote work
 
@@ -134,23 +156,23 @@ authoritative as tools change. No host scheduler or provider adapter is added.
 
 ## Optional Codex recovery reminder
 
-Normal activation needs no profile or hook. CLI installations include the optional
-profile scripts: run `./install.ps1` (Windows) or `sh install.sh` (POSIX) from the
-installed skill directory to opt in. These scripts
-only write multi-ai.config.toml under CODEX_HOME (default ~/.codex); they register
-no skill, launch no worker and change no model or permission settings.
+The default installer does not change Codex configuration. To also create the
+recovery profile, use `./install.ps1 -RecoveryProfile` or
+`sh ./install.sh --recovery-profile`. Both still perform the global skill install.
+The profile is written under CODEX_HOME (default ~/.codex) and references the global
+skill's [recover.md](prompts/recover.md), so it can be used across projects on this host.
+Models, permissions and base configuration are unchanged.
 
-Add `--profile multi-ai` to that project's Codex launcher. Review/trust the native
-hook in `/hooks`, then start a new session. It prints [recover.md](prompts/recover.md)
-on startup/resume/compact with a 400 approximate-token limit. Policy re-reads still
-consume context. See native [hooks](https://learn.chatgpt.com/docs/hooks) and
+Add `--profile multi-ai` to your Codex launcher. Review/trust the native hook in
+`/hooks`, then start a new session. It injects a short reminder at startup/resume/compact
+with a 400 approximate-token limit; policy re-reads still consume context. See native
+[hooks](https://learn.chatgpt.com/docs/hooks) and
 [profiles](https://learn.chatgpt.com/docs/config-file/config-advanced#profiles).
 
-The profile points at the installation that generated it; use it with that project.
-It does not propagate automatically to workers or Claude. Re-runs accept only
-identical profile content. To relocate/migrate an old generated profile, disable
-its launcher option, inspect and remove only that profile, regenerate and trust
-its new definition. Base config and other hooks remain untouched.
+The hook does not automatically propagate to workers or Claude. Profile creation
+accepts only identical existing content. To replace an older generated profile,
+disable its launcher option, inspect and remove only that profile, regenerate and
+trust its new definition. Ordinary installation does not touch an existing profile.
 
 ## Contracts and limits
 

@@ -6,7 +6,8 @@ Project activation does not change the live Dispatch's assigned role or scope.
 
 - Goal and assigned role.
 - Exact checkout, baseline commit, edit scope and frozen interfaces.
-- Acceptance behavior and concrete checks to perform.
+- Confirmed reproduction/baseline and failed attempts, separated from hypotheses.
+- Acceptance checks, the failures they detect and expected observations.
 - Resolved launch route, recorded by the Lead in Orca task context.
 - Unique absolute result-file path accessible to Lead and worker.
 

@@ -1,11 +1,17 @@
 #!/bin/sh
-# Optional Codex recovery profile only. Install the skill with the skills CLI.
+# Global skill installation via the existing skills CLI; recovery is optional.
 set -eu
 
-if [ "$#" -gt 1 ]; then
-    printf '%s\n' 'Usage: sh install.sh [absolute-codex-config-home]' >&2
+recovery_profile=false
+if [ "${1:-}" = --recovery-profile ]; then recovery_profile=true; shift; fi
+if [ "$#" -gt 1 ] || { [ "$#" -eq 1 ] && [ "$recovery_profile" = false ]; }; then
+    printf '%s\n' 'Usage: sh install.sh [--recovery-profile [absolute-codex-config-home]]' >&2
     exit 2
 fi
+npx --yes skills add https://github.com/hyunyul-XCENA/multi-ai/tree/dev --skill multi-ai --agent codex claude-code --global --yes
+printf '%s\n' 'Installed multi-ai globally for Codex and Claude Code. Start a new session on this host.'
+if [ "$recovery_profile" = false ]; then exit 0; fi
+
 source_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 for file in SKILL.md policy.yaml codex-profile.toml prompts/recover.md; do
     if [ ! -f "$source_dir/$file" ]; then
@@ -21,7 +27,7 @@ case "$profile_path" in "$source_dir/"*)
     printf '%s\n' 'The Codex profile must be outside this repository.' >&2; exit 1 ;;
 esac
 # Quote paths for the hook shell, then escape that command for a TOML string.
-skill_path=$(printf '%s' "$source_dir" | sed "s/'/'\\\\''/g")
+skill_path=$(printf '%s' "$HOME/.agents/skills/multi-ai" | sed "s/'/'\\\\''/g")
 hook_command="printf '%s\\n' 'Multi-AI skill directory: $skill_path'; cat '$skill_path/prompts/recover.md'"
 toml_command=$(printf '%s' "$hook_command" | sed 's/\\/\\\\/g; s/"/\\"/g')
 profile=$(cat "$source_dir/codex-profile.toml"; printf 'command = "%s"\n' "$toml_command")
