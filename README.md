@@ -81,6 +81,7 @@ to this SKILL.md and the target checkout; it passes absolute resource paths or
 their contents into each task. Root-level SKILL.md is explicitly loaded here,
 not assumed to be automatically discovered by either CLI.
 
+The [SIMPLE example](examples/simple.md) shows a tiny fix handled directly by the Lead.
 The [NORMAL example](examples/normal.md) shows a single implementation and review.
 The [HARD example](examples/hard-competition.md) shows isolated competitors.
 The [smoke procedure](examples/smoke-test.md) includes checks that make no paid
