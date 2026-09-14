@@ -1,90 +1,79 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "JudgeResult",
+  "description": "Decision made by the Lead during its judge phase.",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "decision",
-    "judge",
-    "candidates",
-    "selected_candidate",
+    "candidate",
+    "snapshot",
     "rationale",
-    "objective_evidence_used",
-    "reviews_used",
+    "objective_evidence",
+    "review_reports",
+    "blocking_findings",
     "rejected_alternatives",
-    "blocking_finding_dispositions",
-    "unresolved_risks",
-    "required_follow_up",
-    "policy_exceptions",
-    "reviewed_snapshot"
+    "risks"
   ],
   "properties": {
     "decision": {"enum":["SELECT","INTEGRATE","REVISE","BLOCK","REJECT"]},
-    "judge": {"$ref":"worker-result.schema.json#/$defs/actor"},
-    "candidates": {
+    "candidate": {"type":["string","null"],"minLength":1},
+    "snapshot": {"anyOf":[{"type":"string","pattern":"^(?:[0-9a-f]{40}|[0-9a-f]{64})$"},{"type":"null"}]},
+    "rationale": {"type":"string","minLength":1},
+    "objective_evidence": {"type":"array","items":{"$ref":"#/$defs/check"}},
+    "review_reports": {"type":"array","items":{"type":"string","minLength":1}},
+    "blocking_findings": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id","snapshot"],
-        "properties": {"id":{"type":"string","minLength":1},"snapshot":{"$ref":"worker-result.schema.json#/$defs/snapshot"}}
+        "required": ["finding","resolution","evidence"],
+        "properties": {
+          "finding": {"type":"string","minLength":1},
+          "resolution": {"enum":["fixed","rejected","unresolved"]},
+          "evidence": {"type":"string","minLength":1}
+        }
       }
     },
-    "selected_candidate": {"type":["string","null"],"minLength":1},
-    "rationale": {"type":"string","minLength":1},
-    "objective_evidence_used": {"type":"array","items":{"type":"string","minLength":1}},
-    "reviews_used": {"type":"array","items":{"type":"string","minLength":1}},
     "rejected_alternatives": {
       "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["candidate_id","reason"],
-        "properties": {"candidate_id":{"type":"string","minLength":1},"reason":{"type":"string","minLength":1}}
+        "required": ["candidate","reason"],
+        "properties": {"candidate":{"type":"string","minLength":1},"reason":{"type":"string","minLength":1}}
       }
     },
-    "blocking_finding_dispositions": {
-      "type": "array",
-      "description": "Findings applicable to the selected snapshot; findings confined to rejected candidates stay in rejected_alternatives with evidence of that scope.",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["finding_id","disposition","evidence"],
-        "properties": {
-          "finding_id": {"type":"string","minLength":1,"description":"Qualify with reviewer identity to avoid collisions."},
-          "disposition": {"enum":["resolved","rejected","unresolved"]},
-          "evidence": {"type":"array","items":{"type":"string","minLength":1},"minItems":1}
-        }
-      }
-    },
-    "unresolved_risks": {"type":"array","items":{"type":"string","minLength":1}},
-    "required_follow_up": {"type":"array","items":{"type":"string","minLength":1}},
-    "policy_exceptions": {"type":"array","items":{"type":"string","minLength":1}},
-    "reviewed_snapshot": {"anyOf":[{"$ref":"worker-result.schema.json#/$defs/snapshot"},{"type":"null"}]}
+    "risks": {"type":"array","items":{"type":"string","minLength":1}}
   },
   "allOf": [
     {
       "if": {"properties":{"decision":{"enum":["SELECT","INTEGRATE"]}},"required":["decision"]},
-      "then": {
-        "properties": {
-          "selected_candidate": {"type":"string","minLength":1},
-          "candidates": {"minItems":1},
-          "objective_evidence_used": {"minItems":1},
-          "reviewed_snapshot": {"$ref":"worker-result.schema.json#/$defs/snapshot"}
-        }
-      }
+      "then": {"properties":{"candidate":{"type":"string","minLength":1}}}
     },
     {
       "if": {"properties":{"decision":{"const":"INTEGRATE"}},"required":["decision"]},
       "then": {
         "properties": {
-          "reviewed_snapshot": {
-            "allOf": [{"$ref":"worker-result.schema.json#/$defs/snapshot"},{"properties":{"kind":{"const":"git"}}}]
-          },
-          "reviews_used": {"minItems":1},
-          "blocking_finding_dispositions": {"items":{"properties":{"disposition":{"enum":["resolved","rejected"]}}}}
+          "snapshot": {"type":"string","pattern":"^(?:[0-9a-f]{40}|[0-9a-f]{64})$"},
+          "objective_evidence": {"minItems":1},
+          "review_reports": {"minItems":1},
+          "blocking_findings": {"items":{"properties":{"resolution":{"enum":["fixed","rejected"]}}}}
         }
       }
     }
-  ]
+  ],
+  "$defs": {
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command","cwd","exit_code","result"],
+      "properties": {
+        "command": {"type":"string","minLength":1},
+        "cwd": {"type":"string","minLength":1},
+        "exit_code": {"type":["integer","null"]},
+        "result": {"type":"string","minLength":1}
+      }
+    }
+  }
 }

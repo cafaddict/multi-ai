@@ -1,113 +1,58 @@
-# Multi-AI: policy for Orca
+# Multi-AI
 
-> Orca is the mechanism. This project is the policy.
+A small intelligence policy on top of Orca: **Policy -> Orca**.
+Orca owns processes, terminals, worktrees, tasks, messaging and persistence.
+This repository supplies instructions and result contracts, with no runtime code
+or installation dependencies.
 
-A small skill for a human-facing Lead (Codex **or** Claude) to route work,
-seek useful disagreement, and decide from evidence. Orca runs the agents and
-owns their worktrees, terminals, tasks, messages, and persistence.
+The Lead decomposes, dispatches, verifies, judges and integrates.
+The five roles are [Lead](roles/lead.md),
+[Architect](roles/architect.md), [Engineer](roles/engineer.md),
+[Researcher](roles/researcher.md) and [Reviewer](roles/reviewer.md); the Lead's
+judge phase is not another worker. The authoritative rules and routing levels
+are in [SKILL.md](SKILL.md).
 
-**There is no application to install or service to start.** Read
-[SKILL.md](SKILL.md) in an agent running inside Orca. Everything here is
-Markdown, YAML guidance, or JSON Schema; no runtime code or package dependencies.
+[SIMPLE](examples/simple.md) demonstrates direct work;
+[NORMAL](examples/normal.md) demonstrates implementation and independent review;
+[HARD](examples/hard-competition.md) demonstrates isolated competitors.
+CRITICAL adds investigation only when a specific risk justifies it.
 
-## Workflow
+## Use and configuration
 
-```text
-Human -> Lead -> routing policy -> worker(s) -> independent review
-              -> Judge -> objective verification -> integration
-```
+Open a Lead session in Orca and ask it to read this SKILL.md, using an absolute
+path when working in another repository. No global skill installation is needed.
+Use the Lead route in [policy.yaml](policy.yaml) when launching; an existing
+session does not change models merely by reading the file.
 
-| Role | Responsibility |
-| --- | --- |
-| [Lead](roles/lead.md) | Classify, delegate, verify, decide integration; implement only SIMPLE work |
-| [Architect](roles/architect.md) | Read-only architecture, interfaces, risks, alternatives |
-| [Engineer](roles/engineer.md) | Implement and test; cannot approve or decide merge |
-| [Researcher](roles/researcher.md) | Read-only investigation and reproducible evidence |
-| [Reviewer](roles/reviewer.md) | Inspect actual code and tests independently |
-| [Judge](roles/judge.md) | Compare requirements and evidence; usually the Lead, not another process |
+policy.yaml centralizes explicit agent/model/effort choices, role-specific
+fallbacks and opposite-family reviewer routes. The Lead passes those choices
+directly to native worker-start. It is human/agent guidance, not an Orca config
+file or a provider adapter. Configure agent execution permissions in Orca.
 
-| Level | Default |
-| --- | --- |
-| SIMPLE | Lead acts directly; typo, rename, obvious tiny fix |
-| NORMAL | One Engineer -> one independent cross-family Reviewer -> Lead verifies |
-| HARD | Independent Claude/Codex lanes -> cross-review -> Judge -> objective checks |
-| CRITICAL | Architect when useful, independent lanes for explicit uncertainties, cross-family review, objective checks, Lead synthesis |
+Inspected with Orca **1.4.202**, Codex **0.154.0**, Claude Code **2.1.268** on
+Windows / PowerShell. Codex IDs/efforts were checked in its local model cache;
+Claude IDs in Orca's bundled catalog and Claude's interface. Account availability
+was not tested with paid calls. The conservative Claude pins use locally
+recognized versions, with explicit fallbacks. Model context:
+[OpenAI](https://developers.openai.com/api/docs/models),
+[Claude](https://code.claude.com/docs/en/model-config).
 
-Competition is a policy, not a framework. Use it for uncertain root causes,
-meaningful design alternatives, concurrency, performance, or high blast radius.
-Do not use it for mechanical edits. Competitors receive the same requirements
-and frozen baseline; neither sees the other's initial answer before both finish.
-Concurrent implementation uses separate **Orca** worktrees.
+## Contracts and checks
 
-Maker != checker. Prefer a different provider family, not merely a different
-model name. A worker's self-report is not evidence. The Lead/Reviewer inspects
-commands, exit codes, outputs, diffs, and current repository state.
+Each worker writes a small JSON report referenced by native worker_done
+--report-path. The Lead reads that file and independently verifies its claims.
+Schemas describe structure, not a sandbox or an automatically enforced merge gate.
 
-Review approval belongs to an exact snapshot. Git changes use full commit SHAs
-and a recorded base commit. Any rebase, fix, synthesis, or new commit invalidates
-the old approval. Plans may instead use a SHA-256 of an immutable artifact.
-The Judge decides from evidence, not votes. An unresolved blocking finding
-prevents integration unless the Judge rejects that finding with reproducible
-counter-evidence recorded by finding ID.
+For a lightweight local check, parse each schema with PowerShell
+`Get-Content -Raw <schema-path> | ConvertFrom-Json` and use PowerShell 7
+`Test-Json -SchemaFile <schema-path>` against a report. Inspect the diff, local
+links and examples, and compare commands with the installed Orca help.
+No worker launch is needed to validate documentation.
 
-## Configuration
+## Intentional limits
 
-Edit [policy.yaml](policy.yaml), the sole provider/model selection location.
-`codex` / `claude` are Orca launcher IDs; family labels are policy guidance.
-Models and effort default to `null`, inheriting the user's configured launch
-defaults. Set an available model ID there to request a specific launch; inspect
-Orca's requested/effective receipt. Do not mistake a requested model for proof.
-
-Changing `lead.provider` changes guidance for the next session, not the running
-Lead. Start that CLI (or use its Orca tab). Either Lead reads the same skill.
-Reviewer family is resolved against the actual maker, not the Lead.
-If a cross-family provider is unavailable, the default is to report a blocker;
-the documented same-family fallback must be explicitly configured and disclosed.
-
-Orca does **not** parse this YAML or enforce these JSON schemas. The Lead follows
-them; these are review contracts, not a code-enforced merge gate or sandbox.
-
-## Try it
-
-Open a PowerShell terminal inside this Orca worktree. For a first small real task:
-
-```powershell
-codex 'Read ./SKILL.md and follow it as Lead. First commit the existing V1 files as the local baseline. NORMAL task: add examples/simple.md showing a tiny documentation fix handled directly without workers, and link it from README.md. Use one Engineer and one independent cross-family Reviewer. Verify the result and integrate locally if approved. Do not push.'
-```
-
-For a Claude Lead, use `claude` with the same quoted prompt. No global skill
-installation is required. For another project, give the Lead the absolute path
-to this SKILL.md and the target checkout; it passes absolute resource paths or
-their contents into each task. Root-level SKILL.md is explicitly loaded here,
-not assumed to be automatically discovered by either CLI.
-
-The [SIMPLE example](examples/simple.md) shows a tiny fix handled directly by the Lead.
-The [NORMAL example](examples/normal.md) shows a single implementation and review.
-The [HARD example](examples/hard-competition.md) shows isolated competitors.
-The [smoke procedure](examples/smoke-test.md) includes checks that make no paid
-agent calls. Launching the example task above does use your configured agents.
-
-## Installed Orca
-
-Inspected on Windows / PowerShell on 2026-09-14: Orca runtime **1.4.202**,
-Codex CLI **0.154.0**, Claude Code **2.1.268**. Orca was already running.
-[ORCA.md](ORCA.md) records the verified interface and its limitations.
-Use version-matched guides again after updates; upstream examples are not
-command authority.
-
-## Intentionally absent
-
-No custom daemon, HTTP server, REST API, FastAPI, dashboard, database (including
-SQLite), Redis, MCP server, generic DAG engine, terminal/worktree manager,
-process supervisor, persistent session database, agent chat bus, plugin
-framework, provider SDK layer, quota/budget manager, Telegram/Slack integration,
-Gemini/OpenCode support, Kubernetes, nested organizations, or recursive spawning.
-No Docker, WSL, extra background service, paid demonstration run, automatic push,
-or custom merge machinery is required. The Lead manages complex work; it should
-not become the default implementation worker.
-
-Reference ideas only: [Orca-first ADR](https://raw.githubusercontent.com/bygama/Agent-Engineering/main/docs/adrs/ADR-008-orchestration.md),
-[structured review protocol](https://github.com/dingtianding/orchestra),
-[independent verification](https://github.com/formiat/multi-agent-orchestration),
-and [snapshot review receipts](https://github.com/DrSeedon/orchestra).
-Their runtime architectures are not included.
+No daemon, HTTP/REST server, FastAPI, dashboard, database/SQLite, Redis, MCP server,
+generic DAG engine, terminal/worktree manager, process supervisor, persistent
+session database, chat bus, plugin framework, provider SDK layer, quota/budget
+manager, Telegram/Slack integration, Gemini/OpenCode, Kubernetes or recursive
+agent organizations. No Docker, WSL, extra service or custom merge machinery.

@@ -3,51 +3,57 @@
   "title": "ReviewResult",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "verdict",
-    "reviewer",
-    "maker_id",
-    "review_target",
-    "blocking_findings",
-    "non_blocking_findings",
-    "evidence",
-    "verification_performed",
-    "residual_risk"
-  ],
+  "required": ["verdict","reviewer_id","maker_id","review_target","verification_performed","findings","residual_risk"],
   "properties": {
     "verdict": {"enum":["APPROVED","CHANGES_REQUESTED","BLOCKED"]},
-    "reviewer": {"$ref":"worker-result.schema.json#/$defs/actor"},
+    "reviewer_id": {"type":"string","minLength":1},
     "maker_id": {"type":"string","minLength":1},
-    "review_target": {"$ref":"worker-result.schema.json#/$defs/snapshot"},
-    "blocking_findings": {"type":"array","items":{"$ref":"#/$defs/finding"}},
-    "non_blocking_findings": {"type":"array","items":{"$ref":"#/$defs/finding"}},
-    "evidence": {"type":"array","items":{"type":"string","minLength":1}},
-    "verification_performed": {"type":"array","items":{"$ref":"worker-result.schema.json#/$defs/command"}},
+    "review_target": {"anyOf":[{"type":"string","pattern":"^(?:[0-9a-f]{40}|[0-9a-f]{64})$"},{"type":"null"}]},
+    "verification_performed": {"type":"array","items":{"$ref":"#/$defs/check"}},
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id","blocking","claim","location","observation"],
+        "properties": {
+          "id": {"type":"string","minLength":1},
+          "blocking": {"type":"boolean"},
+          "claim": {"type":"string","minLength":1},
+          "location": {"type":["string","null"]},
+          "observation": {"type":"string","minLength":1}
+        }
+      }
+    },
     "residual_risk": {"type":"array","items":{"type":"string","minLength":1}}
   },
   "allOf": [
     {
       "if": {"properties":{"verdict":{"const":"APPROVED"}},"required":["verdict"]},
       "then": {
-        "properties": {"blocking_findings":{"maxItems":0},"evidence":{"minItems":1},"verification_performed":{"minItems":1}}
+        "properties": {
+          "findings": {"not":{"contains":{"properties":{"blocking":{"const":true}},"required":["blocking"]}}},
+          "verification_performed": {"minItems":1}
+        }
       }
     },
     {
       "if": {"properties":{"verdict":{"const":"CHANGES_REQUESTED"}},"required":["verdict"]},
-      "then": {"properties":{"blocking_findings":{"minItems":1}}}
+      "then": {
+        "properties": {"findings":{"contains":{"properties":{"blocking":{"const":true}},"required":["blocking"]}}}
+      }
     }
   ],
   "$defs": {
-    "finding": {
+    "check": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id","severity","claim","evidence","location"],
+      "required": ["command","cwd","exit_code","result"],
       "properties": {
-        "id": {"type":"string","minLength":1},
-        "severity": {"enum":["critical","major","minor"]},
-        "claim": {"type":"string","minLength":1},
-        "evidence": {"type":"array","items":{"type":"string","minLength":1},"minItems":1},
-        "location": {"type":["string","null"],"minLength":1}
+        "command": {"type":"string","minLength":1},
+        "cwd": {"type":"string","minLength":1},
+        "exit_code": {"type":["integer","null"]},
+        "result": {"type":"string","minLength":1}
       }
     }
   }
