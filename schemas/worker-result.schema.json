@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WorkerResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "summary",
+    "actor",
+    "role",
+    "files_changed",
+    "commands_run",
+    "tests",
+    "evidence",
+    "assumptions",
+    "risks",
+    "unresolved_questions",
+    "snapshot"
+  ],
+  "properties": {
+    "status": {"enum":["ok","needs_revision","blocked"]},
+    "summary": {"type":"string","minLength":1},
+    "actor": {"$ref":"#/$defs/actor"},
+    "role": {"enum":["architect","engineer","researcher"]},
+    "files_changed": {"type":"array","items":{"type":"string","minLength":1}},
+    "commands_run": {"type":"array","items":{"$ref":"#/$defs/command"}},
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name","status","evidence"],
+        "properties": {
+          "name": {"type":"string","minLength":1},
+          "status": {"enum":["passed","failed","not_run"]},
+          "evidence": {"type":"string","minLength":1}
+        }
+      }
+    },
+    "evidence": {"type":"array","items":{"type":"string","minLength":1}},
+    "assumptions": {"type":"array","items":{"type":"string","minLength":1}},
+    "risks": {"type":"array","items":{"type":"string","minLength":1}},
+    "unresolved_questions": {"type":"array","items":{"type":"string","minLength":1}},
+    "snapshot": {"anyOf":[{"$ref":"#/$defs/snapshot"},{"type":"null"}]}
+  },
+  "allOf": [
+    {
+      "if": {"properties":{"status":{"const":"ok"},"role":{"const":"engineer"}},"required":["status","role"]},
+      "then": {
+        "properties": {"snapshot":{"allOf":[{"$ref":"#/$defs/snapshot"},{"properties":{"kind":{"const":"git"}}}]}}
+      }
+    }
+  ],
+  "$defs": {
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id","provider","family","model"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Authenticated Orca Dispatch identity; Lead identity for coordinator judgment."
+        },
+        "provider": {"type":"string","minLength":1},
+        "family": {"type":"string","minLength":1},
+        "model": {"type":["string","null"],"minLength":1}
+      }
+    },
+    "snapshot": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind","commit","base_commit"],
+          "properties": {
+            "kind": {"const":"git"},
+            "commit": {"type":"string","pattern":"^(?:[0-9a-f]{40}|[0-9a-f]{64})$"},
+            "base_commit": {"type":"string","pattern":"^(?:[0-9a-f]{40}|[0-9a-f]{64})$"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind","path","digest"],
+          "properties": {
+            "kind": {"const":"sha256"},
+            "path": {"type":"string","minLength":1},
+            "digest": {"type":"string","pattern":"^[0-9a-f]{64}$"}
+          }
+        }
+      ],
+      "description": "Git code uses a full commit and agreed base; sha256 is for immutable plan/research artifacts."
+    },
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command","cwd","exit_code","output"],
+      "properties": {
+        "command": {"type":"string","minLength":1},
+        "cwd": {"type":"string","minLength":1},
+        "exit_code": {"type":["integer","null"]},
+        "output": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Observed output or a retrievable evidence reference; explain unavailable output."
+        }
+      }
+    }
+  }
+}

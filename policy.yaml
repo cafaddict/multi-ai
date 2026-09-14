@@ -1,0 +1,59 @@
+# Guidance consumed by the Lead, NOT executable Orca configuration.
+version: 1
+lead:
+  provider: codex # Changing this does not replace an already-running Lead.
+
+providers:
+  codex:
+    family: openai
+    model: null # Inherit configured default; otherwise use a locally available ID.
+    effort: null # Optional; requires an explicit supported model.
+  claude:
+    family: anthropic
+    model: null
+    effort: null
+
+roles:
+  architect:
+    preferred_provider: claude
+    read_only: true
+  engineer:
+    preferred_provider: codex
+    read_only: false
+  researcher:
+    preferred_provider: claude
+    fallback_provider: codex
+    read_only: true
+  reviewer:
+    selection: different_family_from_maker
+    read_only: true
+  judge:
+    selection: lead
+
+routing:
+  SIMPLE: direct
+  NORMAL: implement_then_review
+  HARD: independent_lanes_then_cross_review
+  CRITICAL: architecture_then_independent_lanes_then_cross_review
+
+competition:
+  preferred_providers: [claude, codex]
+  preferred_families: [anthropic, openai]
+  reveal_after_all_initial_results: true
+  implementation_isolation: orca_worktrees
+
+review:
+  maker_must_differ: true
+  cross_family: true
+  unavailable_cross_family: block # Optional: independent_same_family; disclose in JudgeResult.
+  approval_requires_exact_snapshot: true
+  unresolved_blockers_prevent_integration: true
+
+verification:
+  independently_check_worker_claims: true
+  git_code_requires_clean_commit: true
+  integration: fast_forward_reviewed_commit
+
+limits:
+  worker_depth: 1 # Lead -> workers only, even if Orca supports more.
+  revision_rounds: 2 # Then report the unresolved decision; do not loop indefinitely.

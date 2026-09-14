@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "JudgeResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "decision",
+    "judge",
+    "candidates",
+    "selected_candidate",
+    "rationale",
+    "objective_evidence_used",
+    "reviews_used",
+    "rejected_alternatives",
+    "blocking_finding_dispositions",
+    "unresolved_risks",
+    "required_follow_up",
+    "policy_exceptions",
+    "reviewed_snapshot"
+  ],
+  "properties": {
+    "decision": {"enum":["SELECT","INTEGRATE","REVISE","BLOCK","REJECT"]},
+    "judge": {"$ref":"worker-result.schema.json#/$defs/actor"},
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id","snapshot"],
+        "properties": {"id":{"type":"string","minLength":1},"snapshot":{"$ref":"worker-result.schema.json#/$defs/snapshot"}}
+      }
+    },
+    "selected_candidate": {"type":["string","null"],"minLength":1},
+    "rationale": {"type":"string","minLength":1},
+    "objective_evidence_used": {"type":"array","items":{"type":"string","minLength":1}},
+    "reviews_used": {"type":"array","items":{"type":"string","minLength":1}},
+    "rejected_alternatives": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["candidate_id","reason"],
+        "properties": {"candidate_id":{"type":"string","minLength":1},"reason":{"type":"string","minLength":1}}
+      }
+    },
+    "blocking_finding_dispositions": {
+      "type": "array",
+      "description": "Findings applicable to the selected snapshot; findings confined to rejected candidates stay in rejected_alternatives with evidence of that scope.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["finding_id","disposition","evidence"],
+        "properties": {
+          "finding_id": {"type":"string","minLength":1,"description":"Qualify with reviewer identity to avoid collisions."},
+          "disposition": {"enum":["resolved","rejected","unresolved"]},
+          "evidence": {"type":"array","items":{"type":"string","minLength":1},"minItems":1}
+        }
+      }
+    },
+    "unresolved_risks": {"type":"array","items":{"type":"string","minLength":1}},
+    "required_follow_up": {"type":"array","items":{"type":"string","minLength":1}},
+    "policy_exceptions": {"type":"array","items":{"type":"string","minLength":1}},
+    "reviewed_snapshot": {"anyOf":[{"$ref":"worker-result.schema.json#/$defs/snapshot"},{"type":"null"}]}
+  },
+  "allOf": [
+    {
+      "if": {"properties":{"decision":{"enum":["SELECT","INTEGRATE"]}},"required":["decision"]},
+      "then": {
+        "properties": {
+          "selected_candidate": {"type":"string","minLength":1},
+          "candidates": {"minItems":1},
+          "objective_evidence_used": {"minItems":1},
+          "reviewed_snapshot": {"$ref":"worker-result.schema.json#/$defs/snapshot"}
+        }
+      }
+    },
+    {
+      "if": {"properties":{"decision":{"const":"INTEGRATE"}},"required":["decision"]},
+      "then": {
+        "properties": {
+          "reviewed_snapshot": {
+            "allOf": [{"$ref":"worker-result.schema.json#/$defs/snapshot"},{"properties":{"kind":{"const":"git"}}}]
+          },
+          "reviews_used": {"minItems":1},
+          "blocking_finding_dispositions": {"items":{"properties":{"disposition":{"enum":["resolved","rejected"]}}}}
+        }
+      }
+    }
+  ]
+}
