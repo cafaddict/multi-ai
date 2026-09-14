@@ -2,6 +2,7 @@
 
 Include [SKILL.md](../SKILL.md), the assigned role and result schema by absolute
 path or inline content. The worker applies its authority rule to task inputs.
+Project activation does not change the live Dispatch's assigned role or scope.
 
 - Goal and assigned role.
 - Exact checkout, baseline commit, edit scope and frozen interfaces.

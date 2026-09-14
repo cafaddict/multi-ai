@@ -1,168 +1,164 @@
 # Multi-AI
 
-A small intelligence policy on top of Orca: **Policy -> Orca**.
-Orca owns processes, terminals, worktrees, tasks, messaging and persistence.
-This repository supplies instructions and result contracts, with no orchestration
-runtime or package dependencies. Installers register skill links and an optional
-native Codex recovery profile.
+**Orca is the mechanism. Multi-AI is the policy.** Install this skill in an Orca
+project, then give Codex or Claude Code the task: "Fix this bug" or "Investigate
+this performance regression and fix it." No orchestration prompt or worker
+commands are needed from the user.
 
-The Lead decomposes, dispatches, verifies, judges and integrates.
-The five roles are [Lead](roles/lead.md),
-[Architect](roles/architect.md), [Engineer](roles/engineer.md),
-[Researcher](roles/researcher.md) and [Reviewer](roles/reviewer.md); the Lead's
-judge phase is not another worker. The authoritative rules and routing levels
-are in [SKILL.md](SKILL.md).
-
-[SIMPLE](examples/simple.md) demonstrates direct work;
-[NORMAL](examples/normal.md) demonstrates implementation and independent review;
-[HARD](examples/hard-competition.md) demonstrates isolated competitors.
-CRITICAL adds investigation only when a specific risk justifies it.
+[SKILL.md](SKILL.md) owns shared rules; [policy.yaml](policy.yaml) owns model routes.
+Roles, prompts and schemas supply details only when needed. Orca owns processes,
+terminals, worktrees, tasks, messages and persistence. There is no orchestration runtime.
 
 ## How it works
 
 ```mermaid
 flowchart TD
-    Human[Human] --> Lead["Lead: classify and dispatch"]
-    Lead -->|SIMPLE| Direct["Lead: edit and verify"]
-    Lead -->|NORMAL| Engineer
-    Lead -->|"HARD / CRITICAL, when justified"| Competition["Independent solutions"]
-    Lead -.-> Architect
-    Lead -.-> Researcher
-    Architect -.-> Lead
-    Researcher -.-> Lead
-
-    subgraph Workers["Orca-managed workers"]
-        Architect["Architect: design and interfaces"]
-        Researcher["Researcher: investigation and evidence"]
-        Engineer["Engineer: implementation and tests"]
-        A["Solution A: primary family"]
-        B["Solution B: alternate family"]
-        Review["Reviewer: cross-family review of each candidate"]
-    end
-
-    Competition --> A
-    Competition --> B
-    A --> Barrier["Lead: wait for both initial results"]
-    B --> Barrier
-    Barrier --> Review
+    Human["Engineering task"] --> Lead["Lead: assess scope and uncertainty"]
+    Lead -->|"Tiny or mechanical"| Direct["Direct edit and checks"]
+    Direct --> Report["Report to human"]
+    Lead -->|"Localized implementation"| Local["Lead implements"]
+    Lead -->|"Useful delegation"| Engineer["Engineer implements"]
+    Lead -->|"Design questions"| Architect["Architect"]
+    Lead -->|"Evidence needed"| Researcher["Researcher"]
+    Architect --> Lead
+    Researcher --> Lead
+    Lead -->|"Independent hypotheses useful"| Competition["Separate solution lanes"]
+    Competition --> Compare["Initial results complete; critique and compare"]
+    Compare --> Lead
+    Local --> Review["Independent code review; prefer opposite family"]
     Engineer --> Review
     Review --> Judge["Lead: verify evidence and judge"]
-    Judge -->|"Exact commit reviewed; blockers resolved"| Integrate["Lead: integrate reviewed SHA"]
-    Judge -->|"Lead dispatches revision"| Engineer
-    Direct --> Report["Report to human"]
+    Judge -->|"Exact SHA reviewed; blockers resolved"| Integrate["Lead integrates"]
+    Judge -->|"Revision needed"| Lead
     Integrate --> Report
 ```
 
-Arrows show work flowing between steps; the Lead dispatches every worker through
-Orca. Dotted paths are optional investigation. Model and effort choices come from
-[policy.yaml](policy.yaml).
+Paths are choices, not worker counts. The Lead creates every Orca worker.
+Architect covers structure and tradeoffs; Researcher gathers evidence and hypotheses.
+SKILL.md defines review and integration requirements, including Lead-authored code.
 
-## Use and configuration
+## Install in a target project
 
-Clone this private repository on the machine where the agents run, using your
-GitHub credentials. Keep the clone in a stable location:
-
-```sh
-git clone --branch dev https://github.com/hyunyul-XCENA/multi-ai.git
-cd multi-ai
-```
-
-On Windows / PowerShell, run [install.ps1](install.ps1):
-
-```powershell
-.\install.ps1
-```
-
-On Linux/macOS, including an SSH host, run [install.sh](install.sh):
+Run from the **target repository root on its execution host**, with working GitHub
+credentials for this private source. Use the existing [skills CLI](https://github.com/vercel-labs/skills),
+also used by Orca's bundled-skill installer. Node/npx is installation tooling;
+the installed skill has no package dependency.
 
 ```sh
-sh ./install.sh
+npx --yes skills add https://github.com/hyunyul-XCENA/multi-ai/tree/dev --skill multi-ai --agent codex claude-code --yes
+npx --yes skills list --agent codex claude-code
 ```
 
-The installers link this clone into `~/.agents/skills/multi-ai` for Codex and
-`~/.claude/skills/multi-ai` for Claude, following their
-[Codex](https://developers.openai.com/codex/skills/) and
-[Claude](https://code.claude.com/docs/en/skills#where-skills-live) discovery rules.
-Windows uses directory junctions without administrator rights; POSIX uses symlinks.
-Reruns accept matching links/profile content and refuse to replace differing files
-or links. They install no agents or dependencies and change no permissions or
-model settings. `git pull --ff-only` updates the linked skill and recovery text.
-Rerun the installer to add the recovery profile to an older installation.
+Project scope is the default. The CLI installs `.agents/skills/multi-ai/` and exposes
+it under `.claude/skills/multi-ai/` for Claude, managing links/copies and skills-lock.json.
+Review and commit the installed files and project guidance so Orca child worktrees
+and teammates receive them. Windows may use a junction/copy; verify both locations
+when checking out on another host.
 
-Start a new Lead session in Orca, in the **target project's** checkout. Invoke
-`$multi-ai` in Codex or `/multi-ai` in Claude, followed by the task. Without
-installation, ask the Lead to read this SKILL.md by absolute path instead.
-Use the Lead route in [policy.yaml](policy.yaml) when launching; reading the file
-does not change an existing session's model.
+Without Node, copy SKILL.md, policy.yaml, roles/, prompts/ and schemas/ into both
+skill directories. Maintain both copies together. No script is needed to use them;
+the CLI is recommended for maintaining one canonical installation.
 
-### Recovery after long sessions
+## Activate for ordinary requests
 
-The installer writes `multi-ai.config.toml` to `CODEX_HOME` (default `~/.codex`)
-from [codex-profile.toml](codex-profile.toml). It adds a native `SessionStart` hook
-for `startup`, `resume` and `compact`, printing only [recover.md](prompts/recover.md)
-and the installed skill path. It launches no model, parses no transcript, and
-stores no session state. The agent re-reads policy and recovers actual Orca state;
-this is a reminder, not an enforced review/merge gate.
+Add this small section to the target's **AGENTS.md**, preserving other instructions:
 
-Add `--profile multi-ai` once to your saved Codex Lead command, keeping its
-explicit model/effort and `--approve-for-me` options. The existing `$multi-ai`
-prompt can stay saved there. In the first session, open `/hooks`, review and trust
-this hook, then start a new session. Codex skips untrusted or disabled hooks;
-the installer neither enables disabled hooks nor bypasses trust. See the native
-[hook trust](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks) and
-[profile](https://learn.chatgpt.com/docs/config-file/config-advanced#profiles) rules.
+```markdown
+For non-trivial engineering work, consult the installed multi-ai skill and choose
+the smallest useful workflow. Handle tiny edits directly. An active Orca worker
+Dispatch retains its assigned role and scope; it must not start a team.
+```
 
-Only Codex sessions launched with this profile receive the hook. It does not
-automatically propagate to Orca workers or Claude; they follow the recovery rule
-in SKILL.md. The reminder preserves the assigned role if a worker explicitly uses
-the profile. Keep model routing in policy.yaml. To stop using the hook, remove
-`--profile multi-ai` from that launcher.
+For Claude, add `@AGENTS.md` to **CLAUDE.md** if it does not already import it.
+[Codex](https://learn.chatgpt.com/docs/build-skills) discovers `.agents/skills`;
+[Claude](https://code.claude.com/docs/en/skills) uses `.claude/skills` and
+[CLAUDE.md imports](https://code.claude.com/docs/en/memory#agentsmd). Both can select
+skills from their descriptions; project guidance makes the intended use explicit.
+Discovery is not a deterministic enforcement gate.
 
-For a free config-load check in PowerShell, run
-`codex --profile multi-ai debug prompt-input | Out-Null` after installation
-(use `> /dev/null` in a POSIX shell). This renders context without a model call;
-it does not execute or trust hooks. Inspect `/hooks` in an idle session for one Multi-AI
-SessionStart entry with the three sources above; no per-tool or per-prompt hook.
-The output limit is 400 approximate tokens; subsequent policy reads still use
-input tokens. Actual compaction delivery can be checked during the next real task.
+Start your usual Codex or Claude session in the target Orca workspace and give
+only the task. Saved Lead prompts can be shortened. Set Lead model/effort when
+launching; a skill cannot change an existing session's model or permissions.
+Explicit `$multi-ai` (Codex) or `/multi-ai` (Claude) remains available.
 
-For Orca SSH projects, install on the remote execution host, where Orca's CLI
-connection and the configured Codex/Claude launchers must already work. Local
-Windows installation does not register the skill remotely or copy credentials.
-Prefer Lead and workers on that host; consult the installed Orca placement guide
-for cross-server dispatch. Source and report files must remain accessible to the
-Lead. The examples use PowerShell syntax; use the host's shell and paths on Linux.
-Orca 1.4.202's `skills install` installs its bundled guides, not this repository.
+Verify the project path in Codex `/skills` or Claude's skill list. Restart after
+adding project instructions. Check behavior during real work; no paid demo is needed:
 
-policy.yaml centralizes explicit agent/model/effort choices, role-specific
-fallbacks and opposite-family reviewer routes. The Lead passes those choices
-directly to native worker-start. It is human/agent guidance, not an Orca config
-file or a provider adapter. Configure agent execution permissions in Orca.
+| Task alone | Expected decision |
+| --- | --- |
+| "Fix this typo in README." | [SIMPLE](examples/simple.md): direct edit and checks. |
+| "Add input validation to this API and regression tests." | [NORMAL](examples/normal.md): delegate if useful; independently review the behavior change. |
+| "The CUDA path is intermittently 30% slower. Find the cause and fix it." | [HARD](examples/hard-competition.md): consider independent hypotheses, benchmark, then implement and review. |
 
-Inspected with Orca **1.4.202**, Codex **0.154.0**, Claude Code **2.1.268** on
-Windows / PowerShell. Codex IDs/efforts were checked in its local model cache;
-Claude IDs in Orca's bundled catalog and Claude's interface. Account availability
-was not tested with paid calls. The conservative Claude pins use locally
-recognized versions, with explicit fallbacks. Model context:
-[OpenAI](https://developers.openai.com/api/docs/models),
-[Claude](https://code.claude.com/docs/en/model-config).
+## Update and remove
 
-## Contracts and checks
+Update in the target repository:
 
-Each worker writes a small JSON report referenced by native worker_done
---report-path. The Lead reads that file and independently verifies its claims.
-Schemas describe structure, not a sandbox or an automatically enforced merge gate.
+```sh
+npx --yes skills update multi-ai --project --yes
+```
 
-For a lightweight local check, parse each schema with PowerShell
-`Get-Content -Raw <schema-path> | ConvertFrom-Json` and use PowerShell 7
-`Test-Json -SchemaFile <schema-path>` against a report. Inspect the diff, local
-links and examples, and compare commands with the installed Orca help.
-No worker launch is needed to validate documentation.
+To remove the project installation:
 
-## Intentional limits
+```sh
+npx --yes skills remove multi-ai --yes
+```
+
+Review updates in Git, including any project-specific policy.yaml changes. Removal
+also needs you to remove the Multi-AI routing paragraph; retain other project
+instructions/imports. Remove any saved invocation or recovery-profile option you
+no longer use. Manual-copy installations update/remove both copies.
+For local-source CLI installs, update by repeating the original add command;
+skills 1.5.26's update command skips local sources.
+
+For an old personal installation, remove `--profile multi-ai` from its launcher
+before running `npx --yes skills remove multi-ai --global --yes`. Install at project
+scope to avoid duplicate discovery or personal Claude skill precedence. The old
+install.ps1/install.sh skill-registration workflow is replaced by the skills CLI.
+
+## Routing and remote work
+
+Model preferences remain in policy.yaml. Every worker receives explicit native
+`--agent`, `--model` and `--effort` options. Review prefers the opposite maker family;
+if those routes are unavailable, same_family_fallback permits a fresh independent
+checker with the limitation recorded. Remove that fallback or require cross-family
+coverage in the task to make it mandatory. Model availability is account-specific.
+
+NORMAL/HARD guide judgment; CRITICAL deepens verification rather than maximizing
+agents. For SSH projects, installation, builds, tests and benchmarks run on the
+workspace's execution host. Paths and reports are not automatically shared across
+hosts. Use Orca's installed placement guide for remote dispatch.
+
+Checked against Orca 1.4.202, Codex 0.154.0 and skills CLI 1.5.26. Native guides remain
+authoritative as tools change. No host scheduler or provider adapter is added.
+
+## Optional Codex recovery reminder
+
+Normal activation needs no profile or hook. CLI installations include the optional
+profile scripts: run `./install.ps1` (Windows) or `sh install.sh` (POSIX) from the
+installed skill directory to opt in. These scripts
+only write multi-ai.config.toml under CODEX_HOME (default ~/.codex); they register
+no skill, launch no worker and change no model or permission settings.
+
+Add `--profile multi-ai` to that project's Codex launcher. Review/trust the native
+hook in `/hooks`, then start a new session. It prints [recover.md](prompts/recover.md)
+on startup/resume/compact with a 400 approximate-token limit. Policy re-reads still
+consume context. See native [hooks](https://learn.chatgpt.com/docs/hooks) and
+[profiles](https://learn.chatgpt.com/docs/config-file/config-advanced#profiles).
+
+The profile points at the installation that generated it; use it with that project.
+It does not propagate automatically to workers or Claude. Re-runs accept only
+identical profile content. To relocate/migrate an old generated profile, disable
+its launcher option, inspect and remove only that profile, regenerate and trust
+its new definition. Base config and other hooks remain untouched.
+
+## Contracts and limits
+
+Workers write JSON reports referenced by native worker_done --report-path. Schemas
+describe structure; the Lead verifies identity, snapshots and evidence. Use available
+JSON tooling and native CLI help for structural checks; these cannot prove behavior.
 
 No daemon, HTTP/REST server, FastAPI, dashboard, database/SQLite, Redis, MCP server,
-generic DAG engine, terminal/worktree manager, process supervisor, persistent
-session database, chat bus, plugin framework, provider SDK layer, quota/budget
-manager, Telegram/Slack integration, Gemini/OpenCode, Kubernetes or recursive
-agent organizations. No Docker, WSL, extra service or custom merge machinery.
+generic DAG engine, terminal/worktree manager, process supervisor, session database,
+chat bus, plugin framework, provider SDK, quota/budget manager, Telegram/Slack,
+Gemini/OpenCode, Kubernetes or recursive teams. No Docker, WSL or extra service.

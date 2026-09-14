@@ -1,36 +1,24 @@
-# HARD: investigate a lost wakeup
+# HARD: intermittent CUDA regression
 
-A queue intermittently loses wakeups. The Lead chooses competition because two
-independent root-cause hypotheses could change the synchronization design.
+User: "The CUDA path is intermittently 30% slower. Find the root cause and fix it."
 
-Apply [SKILL.md](../SKILL.md) and [competition.md](../prompts/competition.md).
-Freeze the same base commit, allowed interfaces, regression reproducer and stress
-test method. Fill independent Engineer specs `$specA` and `$specB`, each with its
-own result-file path as in the [NORMAL example](normal.md).
+The Lead consults [SKILL.md](../SKILL.md) and establishes a reproducible workload,
+baseline commit, device/environment, warmup and repeated timing method on the
+workspace host. One slow sample does not establish a regression or its cause.
 
-Read `$laneA` and `$laneB` from policy.yaml's competition.lanes primary_family
-and alternate_family primary routes. With current defaults these are Codex and
-Claude. These objects contain all three launch fields; no model is inferred.
+Independent hypotheses could distinguish synchronization from allocation behavior.
+The Lead may dispatch two Researcher lanes using the configured competition routes
+and [competition.md](../prompts/competition.md). Both get the same observations;
+neither sees the other's initial conclusions. Benchmarks on a shared GPU run
+sequentially so competing workloads do not contaminate the measurements.
 
-```powershell
-$tag = [Guid]::NewGuid().ToString('N').Substring(0, 8)
-orca orchestration run-create --objective 'Resolve the queue lost-wakeup defect' --json
-orca orchestration worker-start --spec $specA --worktree new-child --name "queue-a-$tag" --base-branch $baseCommit --agent $laneA.agent --model $laneA.model --effort $laneA.effort --setup inherit --json
-orca orchestration worker-start --spec $specB --worktree new-child --name "queue-b-$tag" --base-branch $baseCommit --agent $laneB.agent --model $laneB.model --effort $laneB.effort --setup inherit --json
-```
+Once both initial results exist, the Lead can ask them to challenge each other's
+hypotheses. Reproducible measurements decide which explanation survives. If one
+investigation settles the uncertainty, duplicate implementations are unnecessary.
+Unavailable cross-family coverage is recorded rather than silently claimed.
 
-Use the installed guide's supervision loop. Once both initial results are frozen,
-fill two review specs with the opposing hypotheses and exact candidate commits.
-Resolve `$reviewerA` against A's actual maker family and `$reviewerB` against B's.
-Use the exact returned worktree selectors and distinct review report paths.
-
-```powershell
-orca orchestration worker-start --spec $reviewSpecA --worktree $worktreeA --agent $reviewerA.agent --model $reviewerA.model --effort $reviewerA.effort --json
-orca orchestration worker-start --spec $reviewSpecB --worktree $worktreeB --agent $reviewerB.agent --model $reviewerB.model --effort $reviewerB.effort --json
-```
-
-Suppose A removes the observed lost wakeup but B fails the stress test. The Lead
-reproduces that evidence and records why A satisfies the requirements and B does
-not, including review findings. Two confident answers cannot outweigh the failure.
-If neither is adequate, request revision or reject both. Combining their fixes
-would produce a new candidate requiring the shared policy's review/checks.
+An Engineer implements the supported fix. If two implementations remain useful,
+Orca supplies separate worktrees at the same base. The selected code receives
+independent review of its exact SHA and equivalent benchmark checks. The Lead
+judges correctness, performance and review findings before integration; a new
+combined implementation is a new review target. No special user prompt is required.

@@ -1,12 +1,16 @@
 ---
 name: multi-ai
-description: Lead bounded work through Orca with explicit model routing, independent review and evidence-based integration. Use for supervised multi-agent tasks; simple edits stay direct.
+description: Guide implementation, debugging, performance investigation and code review in Orca projects. Choose useful delegation and independent verification; keep trivial edits direct.
 ---
 
 # Multi-AI policy
 
 This file is the authoritative orchestration policy. [policy.yaml](policy.yaml)
 holds provider/model preferences; roles, prompts and examples apply these rules.
+Apply this skill to ordinary engineering requests without requiring a special
+invocation. An active Orca Dispatch keeps its assigned worker role and scope;
+otherwise the user-facing session acts as Lead. Load only the role, prompt and
+schema needed for the current work. Tiny edits need no coordination guide.
 
 ## Authority and native mechanism
 
@@ -38,15 +42,17 @@ project-specific empty-wait counter. Missing native support blocks delegation.
 For SSH/remote work, read the installed guide's references/placement-and-remote.md
 before dispatch. Prefer Lead and workers on the same execution host. Resolve skill,
 source and report paths there; a Windows path is not a remote filesystem path.
+Run builds, tests and benchmarks on the active workspace's execution host.
 Across servers, verify native access to source and reports before dispatch;
 --report-path does not transfer file contents. Missing access blocks verification.
 
 ## Lead and workers
 
 The [Lead](roles/lead.md) owns decomposition, dispatch, verification, the **judge
-phase**, and integration. Judge is not a spawned V1 role. For delegated work,
-route implementation and fixes to an [Engineer](roles/engineer.md).
-The Lead does not become the default implementer of complex work.
+phase**, and integration. Judge is not a spawned V1 role. Delegate bounded
+implementation and fixes to an [Engineer](roles/engineer.md) when useful; the Lead
+may make a localized change when coordination costs more than it adds. The Lead
+manages complex work and does not routinely take over delegated implementation.
 
 Only the Lead creates workers; one generation, no grandchildren or worker-created
 Runs. Workers report further work to the Lead. A live Dispatch preamble identifies
@@ -64,9 +70,14 @@ policy.yaml; the profile changes neither intelligence settings nor permissions.
 | Level | Routing decision |
 | --- | --- |
 | SIMPLE | Tiny, obvious, low-risk change: Lead acts directly, with no worker/review ceremony. |
-| NORMAL | One Engineer, one independent cross-family Reviewer, then Lead verification. |
-| HARD | Justified independent solutions, cross-review, then Lead judgment and objective checks. |
-| CRITICAL | Name the severe risk; use Architect and independent lanes only where they resolve it. |
+| NORMAL | Delegate when useful; obtain independent review for meaningful code changes and keep coordination minimal. |
+| HARD | Use independent investigation or competing solutions where uncertainty warrants it; cross-review hypotheses when useful. |
+| CRITICAL | Name the severe risk and deepen verification; add investigation only where it addresses that risk. |
+
+These levels guide judgment, not worker counts. Behavior-changing fixes, new
+validation and concurrency, memory or performance changes need independent code
+review, even when Lead implements. Tiny or mechanical edits with no meaningful
+behavior change can end after direct checks; explain the choice briefly if unclear.
 
 Competition is a policy, not a framework. Use it for uncertain causes, meaningful
 alternatives, concurrency/memory correctness, performance questions, high blast
@@ -94,11 +105,17 @@ cross-family coverage. Reuse a terminal only when its proven agent/model/effort
 and assigned role match the next task; otherwise start a fresh worker.
 Orca cannot combine model/effort selection with terminal reuse.
 
-Use only the configured fallback after confirmed model unavailability, following
+Use only the configured fallback after confirmed route unavailability, following
 native failed-attempt recovery; a timeout is not model unavailability. Record the
-substitution and any lost capability. If both routes fail, report a blocker.
-Review fallbacks preserve the opposite family. Do not silently collapse competition
-to one family or upgrade ordinary engineering to a more expensive route.
+substitution and any lost capability. For review, try the opposite-family primary
+and fallback; if unavailable, use the configured same_family_fallback in a fresh
+independent checker session. Record reduced diversity in the review and decision.
+An absent same_family_fallback requires opposite-family coverage.
+Explicitly required cross-family coverage still blocks approval if unavailable;
+no available independent checker blocks approval, not useful investigation.
+If competition loses a family, revise the approach and disclose the limitation;
+do not describe same-family work as cross-family competition. Do not upgrade
+ordinary engineering to a more expensive route without a policy justification.
 Lead configuration applies when starting a Lead session; disclose a different
 existing Lead configuration rather than pretending this file changes it.
 
@@ -121,7 +138,9 @@ rerun meaningful acceptance checks independently. Missing required evidence,
 malformed reports or unverifiable identity prevents approval.
 
 Prepare independent review with [review.md](prompts/review.md).
-Maker != checker, including a maker returning under a new Dispatch/role.
+Maker != checker, including Lead-authored changes and a maker returning under a
+new Dispatch/role. For a Lead maker, use its native Orca coordinator handle as
+maker_id and record launch provenance with the Run; worker makers use Dispatch IDs.
 Prefer a reviewer from the configured opposite family and verify the actual launch.
 Code review identifies the **full Git commit SHA**; verify HEAD, agreed base/diff
 and clean source state before and after checks. Any fix, rebase, squash, conflict
@@ -131,9 +150,10 @@ null snapshots; they need no cryptographic receipt.
 
 ## Lead's judge phase
 
-For delegated work, use [judge.md](prompts/judge.md) and emit
-[JudgeResult](schemas/judge-result.schema.json). SIMPLE ends with direct verification
-and a report to the human, without independent review or JudgeResult.
+For reviewed changes or candidate comparisons, use [judge.md](prompts/judge.md)
+and emit [JudgeResult](schemas/judge-result.schema.json). Direct changes exempt
+from independent review end with checks and a report to the human, without JudgeResult.
+Investigation alone can end with verified findings and no integration decision.
 Decide from requirements, observed code, tests, benchmarks, reproducible evidence,
 review findings and simplicity; worker confidence comes last. Never count votes.
 Account for every blocking finding affecting the selection: resolved with fresh

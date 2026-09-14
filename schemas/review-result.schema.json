@@ -7,7 +7,7 @@
   "properties": {
     "verdict": {"enum":["APPROVED","CHANGES_REQUESTED","BLOCKED"]},
     "reviewer_id": {"type":"string","minLength":1},
-    "maker_id": {"type":"string","minLength":1},
+    "maker_id": {"type":"string","minLength":1,"description":"Maker Dispatch ID, or native Orca coordinator handle for Lead-authored code."},
     "review_target": {"anyOf":[{"type":"string","pattern":"^(?:[0-9a-f]{40}|[0-9a-f]{64})$"},{"type":"null"}]},
     "verification_performed": {"type":"array","items":{"$ref":"#/$defs/check"}},
     "findings": {
