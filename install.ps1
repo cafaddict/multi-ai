@@ -5,7 +5,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-& npx --yes skills add https://github.com/hyunyul-XCENA/multi-ai/tree/dev --skill multi-ai --agent codex claude-code --global --yes
+# Invoke npx directly so npm's PowerShell shim preserves the arguments.
+npx --yes skills add https://github.com/hyunyul-XCENA/multi-ai/tree/dev --skill multi-ai --agent codex claude-code --global --yes
 if ($LASTEXITCODE -ne 0) { throw "Global skill installation failed (exit $LASTEXITCODE)." }
 Write-Output 'Installed multi-ai globally for Codex and Claude Code. Start a new session on this host.'
 if (-not $RecoveryProfile) { return }
