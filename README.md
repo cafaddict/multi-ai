@@ -17,6 +17,45 @@ are in [SKILL.md](SKILL.md).
 [HARD](examples/hard-competition.md) demonstrates isolated competitors.
 CRITICAL adds investigation only when a specific risk justifies it.
 
+## How it works
+
+```mermaid
+flowchart TD
+    Human[Human] --> Lead["Lead: classify and dispatch"]
+    Lead -->|SIMPLE| Direct["Lead: edit and verify"]
+    Lead -->|NORMAL| Engineer
+    Lead -->|"HARD / CRITICAL, when justified"| Competition["Independent solutions"]
+    Lead -.-> Architect
+    Lead -.-> Researcher
+    Architect -.-> Lead
+    Researcher -.-> Lead
+
+    subgraph Workers["Orca-managed workers"]
+        Architect["Architect: design and interfaces"]
+        Researcher["Researcher: investigation and evidence"]
+        Engineer["Engineer: implementation and tests"]
+        A["Solution A: primary family"]
+        B["Solution B: alternate family"]
+        Review["Reviewer: cross-family review of each candidate"]
+    end
+
+    Competition --> A
+    Competition --> B
+    A --> Barrier["Lead: wait for both initial results"]
+    B --> Barrier
+    Barrier --> Review
+    Engineer --> Review
+    Review --> Judge["Lead: verify evidence and judge"]
+    Judge -->|"Exact commit reviewed; blockers resolved"| Integrate["Lead: integrate reviewed SHA"]
+    Judge -->|"Lead dispatches revision"| Engineer
+    Direct --> Report["Report to human"]
+    Integrate --> Report
+```
+
+Arrows show work flowing between steps; the Lead dispatches every worker through
+Orca. Dotted paths are optional investigation. Model and effort choices come from
+[policy.yaml](policy.yaml).
+
 ## Use and configuration
 
 Open a Lead session in Orca and ask it to read this SKILL.md, using an absolute
