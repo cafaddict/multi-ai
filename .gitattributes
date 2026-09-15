@@ -1,3 +1,3 @@
 install.sh text eol=lf
-configure.sh text eol=lf
+multi-ai-cli.mjs text eol=lf
 codex-profile.toml text eol=lf

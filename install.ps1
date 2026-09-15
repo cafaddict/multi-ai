@@ -8,8 +8,12 @@ $ErrorActionPreference = 'Stop'
 # Invoke npx directly so npm's PowerShell shim preserves the arguments.
 npx --yes skills add https://github.com/hyunyul-XCENA/multi-ai/tree/dev --skill multi-ai --agent codex claude-code --global --yes
 if ($LASTEXITCODE -ne 0) { throw "Global skill installation failed (exit $LASTEXITCODE)." }
+$installedSkillPath = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.agents/skills/multi-ai'
+$npmCommand = (Get-Command npm.cmd -ErrorAction Stop).Source
+& $npmCommand install --global --ignore-scripts --no-audit --no-fund $installedSkillPath
+if ($LASTEXITCODE -ne 0) { throw "Global CLI installation failed (exit $LASTEXITCODE)." }
 Write-Output 'Installed multi-ai globally for Codex and Claude Code. Start a new session on this host.'
-Write-Output 'Host routing: & "$HOME\.agents\skills\multi-ai\configure.ps1" engineer <default|codex|claude>'
+Write-Output 'Host routing: multi-ai-cli tui | multi-ai-cli engineer <default|codex|claude>'
 if (-not $RecoveryProfile) { return }
 
 $source = Get-Item -LiteralPath $PSScriptRoot
@@ -26,7 +30,6 @@ if (-not $CodexConfigHome) {
 $profilePath = Join-Path ([IO.Path]::GetFullPath($CodexConfigHome)) 'multi-ai.config.toml'
 $profileDirectory = Split-Path $profilePath
 # Encode only our literal file-read command to avoid nested shell/path quoting.
-$installedSkillPath = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.agents/skills/multi-ai'
 $skillPathLiteral = $installedSkillPath.Replace("'", "''")
 $recoveryPathLiteral = (Join-Path $installedSkillPath 'prompts/recover.md').Replace("'", "''")
 $readCommand = "[Console]::OutputEncoding = [Text.UTF8Encoding]::new(`$false); [Console]::WriteLine('Multi-AI skill directory: $skillPathLiteral'); Get-Content -Raw -Encoding UTF8 -LiteralPath '$recoveryPathLiteral' -ErrorAction Stop"

@@ -61,8 +61,9 @@ sh ./install.sh
 Both scripts call the existing [skills CLI](https://github.com/vercel-labs/skills)
 with `--global`, `--skill multi-ai` and `--agent codex claude-code`. The CLI manages
 installation; the scripts contain no skill-copy or worker-launch implementation.
-Node/npx and GitHub access are needed for installation, not for running the skill.
-A failed CLI install stops the script. Re-running refreshes the global installation.
+Node/npx and GitHub access are needed for installation; Node also runs the optional
+configuration CLI. Agent orchestration itself has no Multi-AI runtime. A failed
+skill or CLI install stops the script. Re-running refreshes the global installation.
 
 Codex discovers `~/.agents/skills/multi-ai/`; Claude uses `~/.claude/skills/multi-ai/`.
 This covers all projects for that user on that host. Run once on Windows for local
@@ -71,25 +72,26 @@ installation. No project-by-project installation or recurring prompt is needed.
 
 ### Change the Engineer family on one host
 
-The installed configuration command stores one host-local preference outside the
-skill, so reinstalling or updating Multi-AI does not erase it. On Windows:
-
-```powershell
-& "$HOME\.agents\skills\multi-ai\configure.ps1" engineer claude
-```
-
-On Linux/macOS or an SSH host:
+The installer also registers the dependency-free `multi-ai-cli` through npm's
+global bin. It stores one host-local preference outside the skill, so reinstalling
+or updating Multi-AI does not erase it. Open the terminal UI with:
 
 ```sh
-sh ~/.agents/skills/multi-ai/configure.sh engineer claude
+multi-ai-cli tui
 ```
 
-Use `show` instead of `engineer claude` to inspect the setting. Use `engineer codex`
+Or configure it directly on Windows, Linux/macOS or an SSH host:
+
+```sh
+multi-ai-cli engineer claude
+```
+
+Run `multi-ai-cli` or `multi-ai-cli show` to inspect the setting. Use `engineer codex`
 to prefer the configured Codex route, or `engineer default` to return to policy.yaml's
-primary route. From a source clone, `./configure.ps1` or `sh ./configure.sh` works too.
-The command writes only `~/.multi-ai/policy.yaml`; set `MULTI_AI_CONFIG_HOME` to put
-that file elsewhere. Start a new Lead session after changing it, or ask an existing
-Lead to re-read the host policy.
+primary route. The command writes only `~/.multi-ai/policy.yaml`; set
+`MULTI_AI_CONFIG_HOME` to put that file elsewhere. Start a new Lead session after
+changing it, or ask an existing Lead to re-read the host policy. If the command is
+not found, ensure npm's global bin is on PATH and rerun the installer.
 
 This V1 override selects only between the two Engineer routes already defined in
 policy.yaml; model names and effort remain centralized there. A Claude Engineer is
@@ -202,6 +204,7 @@ installed skill do not.
 To remove the global installation:
 
 ```sh
+npm uninstall --global multi-ai-cli
 npx --yes skills remove multi-ai --global --yes
 ```
 
