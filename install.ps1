@@ -13,7 +13,7 @@ $npmCommand = (Get-Command npm.cmd -ErrorAction Stop).Source
 & $npmCommand install --global --ignore-scripts --no-audit --no-fund $installedSkillPath
 if ($LASTEXITCODE -ne 0) { throw "Global CLI installation failed (exit $LASTEXITCODE)." }
 Write-Output 'Installed multi-ai globally for Codex and Claude Code. Start a new session on this host.'
-Write-Output 'Host routing: multi-ai-cli tui | multi-ai-cli engineer <default|codex|claude>'
+Write-Output 'Host policy: multi-ai-cli tui | multi-ai-cli show | multi-ai-cli set <path> <value>'
 if (-not $RecoveryProfile) { return }
 
 $source = Get-Item -LiteralPath $PSScriptRoot

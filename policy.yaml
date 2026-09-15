@@ -1,8 +1,8 @@
-# Lead-read guidance, not executable Orca config. Checked locally on 2026-09-14.
+# Installed Lead-read defaults, not executable Orca config. Checked locally on 2026-09-14.
 version: 2
 families: {codex: openai, claude: anthropic}
 
-# Exact identifiers live here. All routes explicitly include effort.
+# Default identifiers live here. Host overrides may replace route leaves.
 lead:
   primary: {agent: codex, model: gpt-6-astra, effort: xhigh}
   fallback: {agent: claude, model: claude-fable-5, effort: xhigh}

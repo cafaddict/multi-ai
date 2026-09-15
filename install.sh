@@ -11,7 +11,7 @@ fi
 npx --yes skills add https://github.com/hyunyul-XCENA/multi-ai/tree/dev --skill multi-ai --agent codex claude-code --global --yes
 npm install --global --ignore-scripts --no-audit --no-fund "$HOME/.agents/skills/multi-ai"
 printf '%s\n' 'Installed multi-ai globally for Codex and Claude Code. Start a new session on this host.'
-printf '%s\n' 'Host routing: multi-ai-cli tui | multi-ai-cli engineer <default|codex|claude>'
+printf '%s\n' 'Host policy: multi-ai-cli tui | multi-ai-cli show | multi-ai-cli set <path> <value>'
 if [ "$recovery_profile" = false ]; then exit 0; fi
 
 source_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)

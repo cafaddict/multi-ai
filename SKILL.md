@@ -100,18 +100,19 @@ When competition is justified, prepare the briefs with [competition.md](prompts/
 ## Explicit intelligence routing
 
 Context may inherit. Intelligence configuration should be explicit.
-Before routing an Engineer, read `$MULTI_AI_CONFIG_HOME/policy.yaml` when that
-variable is set, otherwise `~/.multi-ai/policy.yaml`, if the file exists. The V1
-host policy may set `role_families.engineer` to `codex`, `claude` or `default`.
-Select the primary or fallback Engineer route in policy.yaml whose agent matches
-that family; `default` or no host policy uses the primary route. This preference
-does not alter competition lanes or review routing. Ignore and disclose a malformed
-or unknown host preference rather than inventing a route. Selecting a family here
-is an intentional host preference, not an availability fallback.
+Start with policy.yaml. Then read `$MULTI_AI_CONFIG_HOME/policy.yaml` when that
+variable is set, otherwise `~/.multi-ai/policy.yaml`, if it exists. A version 2
+host policy contains an `overrides` mapping whose dotted keys replace matching
+leaf values in the installed policy. Apply only known route `agent`, `model`,
+`effort`, and `revision_rounds` keys; ignore and disclose a malformed file or
+unknown key rather than inventing a route. The configuration CLI writes only
+differences, so all other values continue to follow the installed policy. A legacy
+version 1 `role_families.engineer` preference selects the matching installed
+Engineer route until the CLI migrates it on its next write.
 
-Resolve each other role's primary agent, model and effort from policy.yaml. Competition
-uses its lane routes in place of ordinary role routes, keeping the assigned role
-explicit; review uses the **actual maker's family** lookup.
+Resolve every role from that effective policy. Competition uses its lane routes
+in place of ordinary role routes, keeping the assigned role explicit; review uses
+the **actual maker's family** lookup.
 Pass all three native options on each fresh worker-start:
 `--agent`, `--model`, `--effort`. Set the assigned role explicitly in the task spec.
 Do not pass unset values or let a configured role inherit launcher defaults.
@@ -123,8 +124,7 @@ cross-family coverage. Reuse a terminal only when its proven agent/model/effort
 and assigned role match the next task; otherwise start a fresh worker.
 Orca cannot combine model/effort selection with terminal reuse.
 
-Outside an explicit Engineer host preference, use only the configured fallback
-after confirmed route unavailability, following
+Use a configured fallback only after confirmed primary-route unavailability, following
 native failed-attempt recovery; a timeout is not model unavailability. Record the
 substitution and any lost capability. For review, try the opposite-family primary
 and fallback; if unavailable, use the configured same_family_fallback in a fresh
@@ -135,8 +135,9 @@ no available independent checker blocks approval, not useful investigation.
 If competition loses a family, revise the approach and disclose the limitation;
 do not describe same-family work as cross-family competition. Do not upgrade
 ordinary engineering to a more expensive route without a policy justification.
-Lead configuration applies when starting a Lead session; disclose a different
-existing Lead configuration rather than pretending this file changes it.
+Lead configuration applies when starting a Lead session; changing it cannot alter
+the intelligence of an already-running session. Disclose a different existing
+Lead configuration rather than pretending the file changed it.
 
 ## Reports and verification
 

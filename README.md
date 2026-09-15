@@ -62,41 +62,53 @@ Both scripts call the existing [skills CLI](https://github.com/vercel-labs/skill
 with `--global`, `--skill multi-ai` and `--agent codex claude-code`. The CLI manages
 installation; the scripts contain no skill-copy or worker-launch implementation.
 Node/npx and GitHub access are needed for installation; Node also runs the optional
-configuration CLI. Agent orchestration itself has no Multi-AI runtime. A failed
-skill or CLI install stops the script. Re-running refreshes the global installation.
+configuration CLI and its YAML parser. Agent orchestration itself has no Multi-AI
+runtime. A failed skill or CLI install stops the script. Re-running refreshes the
+global installation.
 
 Codex discovers `~/.agents/skills/multi-ai/`; Claude uses `~/.claude/skills/multi-ai/`.
 This covers all projects for that user on that host. Run once on Windows for local
 projects and once on each remote execution host; Windows installation is not remote
 installation. No project-by-project installation or recurring prompt is needed.
 
-### Change the Engineer family on one host
+### Configure routing on one host
 
-The installer also registers the dependency-free `multi-ai-cli` through npm's
-global bin. It stores one host-local preference outside the skill, so reinstalling
-or updating Multi-AI does not erase it. Open the terminal UI with:
+The installer also registers `multi-ai-cli` through npm's global bin. It can edit
+Lead, Architect, Engineer, Researcher, both maker-family Reviewer routes,
+competition lanes and revision rounds. It stores only values that differ from the
+installed policy outside the skill, so updates do not erase local choices and
+unchanged settings continue to receive new defaults. Open the full terminal UI with:
 
 ```sh
 multi-ai-cli tui
 ```
 
-Or configure it directly on Windows, Linux/macOS or an SSH host:
+Or inspect and change any supported policy leaf directly:
+
+```sh
+multi-ai-cli show
+multi-ai-cli get roles.engineer.primary.model
+multi-ai-cli set roles.engineer.primary.agent claude
+multi-ai-cli set roles.engineer.primary.model claude-opus-5
+multi-ai-cli set roles.engineer.primary.effort high
+multi-ai-cli unset roles.engineer.primary.model
+```
+
+The existing family shortcut remains available:
 
 ```sh
 multi-ai-cli engineer claude
 ```
 
-Run `multi-ai-cli` or `multi-ai-cli show` to inspect the setting. Use `engineer codex`
-to prefer the configured Codex route, or `engineer default` to return to policy.yaml's
-primary route. The command writes only `~/.multi-ai/policy.yaml`; set
+It swaps the installed Engineer primary/fallback routes so the requested family is
+preferred. Use `engineer default` to restore those routes, or `multi-ai-cli reset`
+to restore the entire installed policy. Commands write only `~/.multi-ai/policy.yaml`;
+set
 `MULTI_AI_CONFIG_HOME` to put that file elsewhere. Start a new Lead session after
-changing it, or ask an existing Lead to re-read the host policy. If the command is
-not found, ensure npm's global bin is on PATH and rerun the installer.
-
-This V1 override selects only between the two Engineer routes already defined in
-policy.yaml; model names and effort remain centralized there. A Claude Engineer is
-still reviewed through the actual maker-family rule, normally by the configured
-Codex reviewer. Architect, Researcher and HARD competition routes are unchanged.
+changing Lead routing; active sessions cannot change their own model. Other routing
+changes can be picked up by asking an existing Lead to re-read the host policy.
+If the command is not found, ensure npm's global bin is on PATH and rerun the installer.
+Provider families remain limited to the Codex and Claude agents supported by this V1.
 
 For an intentionally project-scoped copy, use the CLI directly from the target root:
 
@@ -198,7 +210,7 @@ not synchronize settings to a different Orca installation.
 
 In the source clone, run `git pull --ff-only`, then re-run `./install.ps1` or
 `sh ./install.sh`. The scripts refresh the published global skill through the CLI.
-Host preferences under `~/.multi-ai/` survive updates; direct edits inside the
+Host overrides under `~/.multi-ai/` survive updates; direct edits inside the
 installed skill do not.
 
 To remove the global installation:
@@ -215,7 +227,7 @@ installations use `npx skills update multi-ai --project --yes` or remove without
 `--global`. Local-source CLI installations update by repeating their add command;
 skills 1.5.26 skips them in update. Manual-copy installations maintain both copies.
 The host policy is deliberately retained for a later reinstall; delete only
-`~/.multi-ai/policy.yaml` if you also want to remove that preference.
+`~/.multi-ai/policy.yaml` if you also want to remove those overrides.
 
 ## Routing and remote work
 
