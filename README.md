@@ -85,7 +85,8 @@ multi-ai-cli tui
 
 The TUI derives its model choices from the installed policy and current overrides.
 Choose an agent, model and effort from menus; you do not need to remember or type a
-model ID. Direct `set` remains available for deliberately testing a new identifier.
+model ID. Use `Esc` or `q` to return one step; at the root they exit without saving.
+Direct `set` remains available for deliberately testing a new identifier.
 
 Or inspect and change any supported policy leaf directly:
 

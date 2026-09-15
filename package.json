@@ -1,6 +1,6 @@
 {
   "name": "multi-ai-cli",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "Host-local policy configuration for Multi-AI",
   "type": "module",
@@ -11,7 +11,6 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@inquirer/select": "4.3.2",
     "yaml": "2.9.1"
   }
 }

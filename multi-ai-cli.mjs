@@ -3,13 +3,19 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
-import select, { Separator } from '@inquirer/select';
 import { parse, stringify } from 'yaml';
 
-const VERSION = '0.3.0';
+const VERSION = '0.3.1';
 const AGENTS = ['codex', 'claude'];
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
+const BACK = Symbol('back');
+class Separator {
+  constructor(separator = '──────────────') {
+    this.separator = separator;
+  }
+}
 const skillHome = path.dirname(fileURLToPath(import.meta.url));
 const basePolicyPath = path.join(skillHome, 'policy.yaml');
 const configHome = path.resolve(process.env.MULTI_AI_CONFIG_HOME || path.join(os.homedir(), '.multi-ai'));
@@ -253,10 +259,77 @@ async function choose(message, choices, defaultValue) {
   if (!process.stdin.isTTY || !process.stdout.isTTY || !process.stdin.setRawMode) {
     throw new Error('TUI requires an interactive terminal. Use multi-ai-cli set <path> <value> instead.');
   }
-  return select(
-    { message, choices, default: defaultValue, pageSize: 20, loop: false },
-    { clearPromptOnDone: true },
-  );
+  const selectable = choices
+    .map((choice, index) => (choice instanceof Separator ? null : index))
+    .filter((index) => index !== null);
+  let active = choices.findIndex((choice) => !(choice instanceof Separator) && choice.value === defaultValue);
+  if (active < 0) active = selectable[0];
+  let renderedLines = 0;
+  const color = (code, value) => process.env.NO_COLOR !== undefined ? value : `\u001b[${code}m${value}\u001b[0m`;
+  const fit = (value) => {
+    const width = Math.max(30, (process.stdout.columns || 80) - 4);
+    return value.length > width ? `${value.slice(0, width - 1)}…` : value;
+  };
+  const clear = () => {
+    if (!renderedLines) return;
+    readline.moveCursor(process.stdout, 0, -renderedLines);
+    readline.cursorTo(process.stdout, 0);
+    readline.clearScreenDown(process.stdout);
+    renderedLines = 0;
+  };
+  const render = () => {
+    clear();
+    const lines = [
+      `${color('36', '?')} ${color('1', message)} ${color('2', '(↑/↓ move · Enter select · Esc/q back)')}`,
+      ...choices.map((choice, index) => {
+        if (choice instanceof Separator) return color('2', `  ${choice.separator}`);
+        const cursor = index === active ? color('36', '❯') : ' ';
+        const name = index === active ? color('1;36', fit(choice.name)) : fit(choice.name);
+        return `${cursor} ${name}`;
+      }),
+      '',
+      color('2', fit(choices[active]?.description || ' ')),
+    ];
+    process.stdout.write(`${lines.join('\n')}\n`);
+    renderedLines = lines.length;
+  };
+
+  process.stdin.resume();
+  readline.emitKeypressEvents(process.stdin);
+  const wasRaw = process.stdin.isRaw;
+  process.stdin.setRawMode(true);
+  process.stdout.write('\u001b[?25l');
+
+  return new Promise((resolve, reject) => {
+    const finish = (value, error) => {
+      process.stdin.off('keypress', onKeypress);
+      process.stdin.setRawMode(Boolean(wasRaw));
+      process.stdin.pause();
+      clear();
+      process.stdout.write('\u001b[?25h');
+      if (error) reject(error);
+      else resolve(value);
+    };
+    const move = (offset) => {
+      const position = selectable.indexOf(active);
+      const next = Math.max(0, Math.min(selectable.length - 1, position + offset));
+      active = selectable[next];
+      render();
+    };
+    const onKeypress = (_input, key = {}) => {
+      if (key.name === 'up') move(-1);
+      else if (key.name === 'down') move(1);
+      else if (key.name === 'return' || key.name === 'enter') finish(choices[active].value);
+      else if (key.name === 'escape' || (key.name === 'q' && !key.ctrl && !key.meta)) finish(BACK);
+      else if (key.ctrl && key.name === 'c') {
+        const error = new Error('User canceled the prompt.');
+        error.name = 'ExitPromptError';
+        finish(undefined, error);
+      }
+    };
+    process.stdin.on('keypress', onKeypress);
+    render();
+  });
 }
 
 function screen(title, detail) {
@@ -292,44 +365,73 @@ function modelChoices(base, effective, agent) {
 
 async function editRoute(base, effective, routePath) {
   const current = getPath(effective, routePath);
-  screen('Edit route', routePath);
-  const agent = await choose(
-    'Agent / provider family',
-    AGENTS.map((value) => ({
-      name: value === 'codex' ? 'Codex' : 'Claude Code',
-      value,
-      description: `Provider family: ${base.families[value]}`,
-    })),
-    current.agent,
-  );
-
-  const availableModels = modelChoices(base, effective, agent);
-  if (!availableModels.length) throw new Error(`No configured models are available for ${agent}.`);
-  const currentModel = current.agent === agent && availableModels.some(({ value }) => value === current.model)
-    ? current.model
-    : availableModels[0].value;
-  const model = await choose('Model', availableModels, currentModel);
-  const effort = await choose(
-    'Reasoning effort',
-    EFFORTS.map((value) => ({ name: value, value })),
-    current.effort,
-  );
-
-  const next = { agent, model, effort };
-  const action = await choose(
-    'Apply this route?',
-    [
-      { name: `Apply  ${routeLabel(next)}`, value: 'apply', description: 'Stage this route in the TUI.' },
-      { name: 'Cancel', value: 'cancel', description: 'Keep the current route.' },
-    ],
-    'apply',
-  );
-  if (action === 'cancel') return;
-  setPath(effective, routePath, {
-    agent: coerceValue(`${routePath}.agent`, agent),
-    model: coerceValue(`${routePath}.model`, model),
-    effort: coerceValue(`${routePath}.effort`, effort),
-  });
+  const draft = { ...current };
+  let step = 0;
+  while (true) {
+    screen('Edit route', `${routePath} · step ${step + 1} of 4`);
+    if (step === 0) {
+      const agent = await choose(
+        'Agent / provider family',
+        AGENTS.map((value) => ({
+          name: value === 'codex' ? 'Codex' : 'Claude Code',
+          value,
+          description: `Provider family: ${base.families[value]}`,
+        })),
+        draft.agent,
+      );
+      if (agent === BACK) return;
+      draft.agent = agent;
+      const available = modelChoices(base, effective, draft.agent);
+      if (!available.some(({ value }) => value === draft.model)) draft.model = available[0]?.value;
+      if (!draft.model) throw new Error(`No configured models are available for ${draft.agent}.`);
+      step = 1;
+      continue;
+    }
+    if (step === 1) {
+      const available = modelChoices(base, effective, draft.agent);
+      const model = await choose('Model', available, draft.model);
+      if (model === BACK) {
+        step = 0;
+        continue;
+      }
+      draft.model = model;
+      step = 2;
+      continue;
+    }
+    if (step === 2) {
+      const effort = await choose(
+        'Reasoning effort',
+        EFFORTS.map((value) => ({ name: value, value })),
+        draft.effort,
+      );
+      if (effort === BACK) {
+        step = 1;
+        continue;
+      }
+      draft.effort = effort;
+      step = 3;
+      continue;
+    }
+    const action = await choose(
+      'Apply this route?',
+      [
+        { name: `Apply  ${routeLabel(draft)}`, value: 'apply', description: 'Stage this route in the TUI.' },
+        { name: 'Cancel', value: 'cancel', description: 'Keep the current route.' },
+      ],
+      'apply',
+    );
+    if (action === BACK) {
+      step = 2;
+      continue;
+    }
+    if (action === 'cancel') return;
+    setPath(effective, routePath, {
+      agent: coerceValue(`${routePath}.agent`, draft.agent),
+      model: coerceValue(`${routePath}.model`, draft.model),
+      effort: coerceValue(`${routePath}.effort`, draft.effort),
+    });
+    return;
+  }
 }
 
 async function editGroup(base, effective, group) {
@@ -347,7 +449,7 @@ async function editGroup(base, effective, group) {
         { name: '← Back', value: 'back' },
       ],
     );
-    if (choice === 'back') return;
+    if (choice === BACK || choice === 'back') return;
     await editRoute(base, effective, `${group.path}.${choice}`);
   }
 }
@@ -403,17 +505,23 @@ async function tui() {
         'group:0',
       );
 
+      if (choice === BACK) {
+        console.clear();
+        console.log('No changes saved.');
+        return;
+      }
       if (choice.startsWith('group:')) {
         await editGroup(base, effective, routeGroups[Number(choice.split(':')[1])]);
         continue;
       }
       if (choice === 'revision') {
         screen('Revision rounds', 'Maximum correction cycles before the Lead reports a blocker');
-        effective.revision_rounds = await choose(
+        const rounds = await choose(
           'Revision-round limit',
           Array.from({ length: 10 }, (_, index) => ({ name: String(index + 1), value: index + 1 })),
           effective.revision_rounds,
         );
+        if (rounds !== BACK) effective.revision_rounds = rounds;
         continue;
       }
       if (choice === 'restore') {
@@ -425,7 +533,7 @@ async function tui() {
           ],
           false,
         );
-        if (confirmed) {
+        if (confirmed !== BACK && confirmed) {
           const restored = clone(base);
           for (const key of Object.keys(effective)) delete effective[key];
           Object.assign(effective, restored);
