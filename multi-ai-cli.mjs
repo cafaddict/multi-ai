@@ -4,12 +4,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parse, stringify } from 'yaml';
 
-const VERSION = '0.3.1';
+const VERSION = '0.4.0';
 const AGENTS = ['codex', 'claude'];
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
+const CODEX_RULE_MARKER = '# Managed by multi-ai-cli.';
 const BACK = Symbol('back');
 class Separator {
   constructor(separator = '──────────────') {
@@ -65,11 +67,149 @@ function usage() {
   multi-ai-cli reset                   Restore all installed defaults
   multi-ai-cli engineer <family>       Prefer default, codex, or claude Engineer routes
   multi-ai-cli tui                     Configure the full policy interactively
+  multi-ai-cli codex-rules install [orca-command]
+                                       Allow installed Orca orchestration commands
+  multi-ai-cli codex-rules show        Show the managed Codex rule
+  multi-ai-cli codex-rules remove      Remove the managed Codex rule
 
 Examples:
   multi-ai-cli set lead.primary.effort xhigh
   multi-ai-cli set roles.engineer.primary.model claude-opus-5
   multi-ai-cli get roles.reviewer.by_maker_family.anthropic.primary.model`;
+}
+
+function resolveExecutable(command) {
+  if (!command) return undefined;
+  const direct = path.resolve(command);
+  if (path.isAbsolute(command) || command.includes('/') || command.includes('\\')) {
+    if (fs.existsSync(direct) && fs.statSync(direct).isFile()) return direct;
+    return undefined;
+  }
+
+  const extensions = process.platform === 'win32'
+    ? [...new Set((process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';').flatMap((extension) => [extension.toLowerCase(), extension]))]
+    : [''];
+  for (const directory of (process.env.PATH || '').split(path.delimiter)) {
+    if (!directory) continue;
+    for (const extension of extensions) {
+      const candidate = path.join(directory, `${command}${extension}`);
+      if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return path.resolve(candidate);
+    }
+  }
+  return undefined;
+}
+
+function resolveOrcaExecutable(explicitCommand) {
+  const candidates = [
+    explicitCommand,
+    process.env.ORCA_CLI_COMMAND,
+    process.env.ORCA_DEV_REPO_ROOT ? 'orca-dev' : undefined,
+    process.platform === 'linux' ? 'orca-ide' : undefined,
+    'orca',
+  ].filter(Boolean);
+  for (const candidate of candidates) {
+    const resolved = resolveExecutable(candidate);
+    if (resolved) return resolved;
+  }
+  throw new Error(`Could not find Orca. Pass its executable explicitly:\n  multi-ai-cli codex-rules install <orca-command>`);
+}
+
+function codexRulesPath() {
+  const codexHome = path.resolve(process.env.CODEX_HOME || path.join(os.homedir(), '.codex'));
+  return path.join(codexHome, 'rules', 'multi-ai.rules');
+}
+
+function managedCodexRule(orcaExecutable) {
+  return `${CODEX_RULE_MARKER}
+# Re-run the Multi-AI installer after Orca moves or upgrades.
+prefix_rule(
+    pattern = [
+        ${JSON.stringify(orcaExecutable)},
+        "orchestration",
+    ],
+    decision = "allow",
+    justification = "Allow native Orca orchestration for the Multi-AI Lead on this host.",
+)
+`;
+}
+
+function assertManagedRule(filePath) {
+  const stat = fs.lstatSync(filePath);
+  if (!stat.isFile() || stat.isSymbolicLink()) {
+    throw new Error(`Refusing to replace a directory or link: ${filePath}`);
+  }
+  const existing = fs.readFileSync(filePath, 'utf8');
+  if (!existing.startsWith(CODEX_RULE_MARKER)) {
+    throw new Error(`Existing rule is not managed by Multi-AI: ${filePath}\nLeft unchanged.`);
+  }
+  return existing;
+}
+
+function validateCodexRule(filePath, orcaExecutable) {
+  const codexExecutable = resolveExecutable('codex');
+  if (!codexExecutable) {
+    console.log('Codex rule validation skipped: codex executable was not found on PATH.');
+    return;
+  }
+  for (const command of ['worker-start', 'dispatch', 'worker-stop', 'worker-abandon', 'reset']) {
+    const result = spawnSync(
+      codexExecutable,
+      ['execpolicy', 'check', '--rules', filePath, '--', orcaExecutable, 'orchestration', command],
+      { encoding: 'utf8', windowsHide: true },
+    );
+    if (result.error) throw new Error(`Could not validate Codex rule: ${result.error.message}`);
+    if (result.status !== 0) {
+      throw new Error(`Codex rejected the generated rule (${command}):\n${result.stderr || result.stdout}`);
+    }
+    let decision;
+    try {
+      decision = JSON.parse(result.stdout).decision;
+    } catch {
+      throw new Error(`Codex returned an unreadable rule result (${command}):\n${result.stdout}`);
+    }
+    if (decision !== 'allow') throw new Error(`Generated rule did not allow Orca ${command}: ${decision}`);
+  }
+}
+
+function installCodexRules(explicitCommand) {
+  const orcaExecutable = resolveOrcaExecutable(explicitCommand);
+  const filePath = codexRulesPath();
+  const directory = path.dirname(filePath);
+  if (fs.existsSync(directory) && !fs.statSync(directory).isDirectory()) {
+    throw new Error(`Not a Codex rules directory: ${directory}`);
+  }
+  if (fs.existsSync(filePath)) assertManagedRule(filePath);
+  fs.mkdirSync(directory, { recursive: true });
+  const candidatePath = path.join(directory, `.multi-ai.rules.${process.pid}.tmp`);
+  fs.writeFileSync(candidatePath, managedCodexRule(orcaExecutable), { encoding: 'utf8', flag: 'wx' });
+  try {
+    validateCodexRule(candidatePath, orcaExecutable);
+    fs.writeFileSync(filePath, fs.readFileSync(candidatePath));
+  } finally {
+    fs.rmSync(candidatePath, { force: true });
+  }
+  console.log(`Codex Orca rule: ${filePath}`);
+  console.log(`Orca executable: ${orcaExecutable}`);
+  console.log('Allowed: the Orca orchestration namespace. Restart Codex to load the rule.');
+}
+
+function showCodexRules() {
+  const filePath = codexRulesPath();
+  if (!fs.existsSync(filePath)) throw new Error(`Managed Codex rule is not installed: ${filePath}`);
+  assertManagedRule(filePath);
+  console.log(`# ${filePath}`);
+  process.stdout.write(fs.readFileSync(filePath, 'utf8'));
+}
+
+function removeCodexRules() {
+  const filePath = codexRulesPath();
+  if (!fs.existsSync(filePath)) {
+    console.log(`Managed Codex rule is already absent: ${filePath}`);
+    return;
+  }
+  assertManagedRule(filePath);
+  fs.unlinkSync(filePath);
+  console.log(`Removed managed Codex rule: ${filePath}`);
 }
 
 function fail(message) {
@@ -573,6 +713,10 @@ async function main() {
   if (args.length === 1 && (args[0] === '--help' || args[0] === '-h')) return console.log(usage());
   if (args.length === 1 && (args[0] === '--version' || args[0] === '-v')) return console.log(VERSION);
   if (args.length === 1 && args[0] === 'tui') return tui();
+  if (args.length === 2 && args[0] === 'codex-rules' && args[1] === 'install') return installCodexRules();
+  if (args.length === 3 && args[0] === 'codex-rules' && args[1] === 'install') return installCodexRules(args[2]);
+  if (args.length === 2 && args[0] === 'codex-rules' && args[1] === 'show') return showCodexRules();
+  if (args.length === 2 && args[0] === 'codex-rules' && args[1] === 'remove') return removeCodexRules();
   if (args.length === 1 && args[0] === 'reset') {
     writeOverrides({});
     console.log(`Restored installed defaults.\nHost policy: ${configPath}`);

@@ -1,6 +1,7 @@
 # Global skill installation via the existing skills CLI; recovery is optional.
 param(
     [switch]$RecoveryProfile,
+    [switch]$SkipCodexOrcaRules,
     [string]$CodexConfigHome = $env:CODEX_HOME
 )
 
@@ -12,6 +13,19 @@ $installedSkillPath = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.
 $npmCommand = (Get-Command npm.cmd -ErrorAction Stop).Source
 & $npmCommand install --global --install-links --ignore-scripts --no-audit --no-fund $installedSkillPath
 if ($LASTEXITCODE -ne 0) { throw "Global CLI installation failed (exit $LASTEXITCODE)." }
+if (-not $SkipCodexOrcaRules) {
+    $multiAiCommand = Get-Command multi-ai-cli.cmd -ErrorAction SilentlyContinue
+    if (-not $multiAiCommand) { $multiAiCommand = Get-Command multi-ai-cli -ErrorAction Stop }
+    $previousCodexHome = $env:CODEX_HOME
+    try {
+        if ($CodexConfigHome) { $env:CODEX_HOME = [IO.Path]::GetFullPath($CodexConfigHome) }
+        & $multiAiCommand.Source codex-rules install
+        if ($LASTEXITCODE -ne 0) { throw "Codex Orca rule installation failed (exit $LASTEXITCODE)." }
+    }
+    finally {
+        $env:CODEX_HOME = $previousCodexHome
+    }
+}
 Write-Output 'Installed multi-ai globally for Codex and Claude Code. Start a new session on this host.'
 Write-Output 'Host policy: multi-ai-cli tui | multi-ai-cli show | multi-ai-cli set <path> <value>'
 if (-not $RecoveryProfile) { return }

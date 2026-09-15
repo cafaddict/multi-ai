@@ -64,12 +64,37 @@ installation; the scripts contain no skill-copy or worker-launch implementation.
 Node/npx and GitHub access are needed for installation; Node also runs the optional
 configuration CLI and its YAML parser. Agent orchestration itself has no Multi-AI
 runtime. A failed skill or CLI install stops the script. Re-running refreshes the
-global installation.
+global installation. By default, the installer also creates a host-local Codex
+execution rule for the detected Orca executable.
 
 Codex discovers `~/.agents/skills/multi-ai/`; Claude uses `~/.claude/skills/multi-ai/`.
 This covers all projects for that user on that host. Run once on Windows for local
 projects and once on each remote execution host; Windows installation is not remote
 installation. No project-by-project installation or recurring prompt is needed.
+
+### Codex approval for Orca orchestration
+
+The installer writes `multi-ai.rules` under `CODEX_HOME/rules` (normally
+`~/.codex/rules`) and validates it with
+`codex execpolicy check` when Codex is on PATH. The rule binds to the detected,
+absolute Orca executable and allows its entire `orca orchestration` namespace,
+including `dispatch`, `worker-stop`, `worker-abandon` and `reset`.
+Other commands still follow the normal Codex approval policy. Restart Codex after
+installation so the new rule is loaded.
+
+Inspect, regenerate or remove only this managed rule with:
+
+```sh
+multi-ai-cli codex-rules show
+multi-ai-cli codex-rules install
+multi-ai-cli codex-rules remove
+```
+
+Pass the executable explicitly if automatic detection is wrong, for example
+`multi-ai-cli codex-rules install /home/me/.orca-relay/bin/orca`. Re-run the
+installer on each execution host because its Orca path and Codex home are local to
+that host. Use `./install.ps1 -SkipCodexOrcaRules` or
+`sh ./install.sh --skip-codex-orca-rules` to leave Codex rules unchanged.
 
 ### Configure routing on one host
 
@@ -221,6 +246,7 @@ installed skill do not.
 To remove the global installation:
 
 ```sh
+multi-ai-cli codex-rules remove
 npm uninstall --global multi-ai-cli
 npx --yes skills remove multi-ai --global --yes
 ```
@@ -252,8 +278,8 @@ authoritative as tools change. No host scheduler or provider adapter is added.
 
 ## Optional Codex recovery reminder
 
-The default installer does not change Codex configuration. To also create the
-recovery profile, use `./install.ps1 -RecoveryProfile` or
+The default installer adds only the dedicated Orca execution rule described above.
+To also create the recovery profile, use `./install.ps1 -RecoveryProfile` or
 `sh ./install.sh --recovery-profile`. Both still perform the global skill install.
 The profile is written under CODEX_HOME (default ~/.codex) and references the global
 skill's [recover.md](prompts/recover.md), so it can be used across projects on this host.
