@@ -100,7 +100,16 @@ When competition is justified, prepare the briefs with [competition.md](prompts/
 ## Explicit intelligence routing
 
 Context may inherit. Intelligence configuration should be explicit.
-Resolve each role's primary agent, model and effort from policy.yaml. Competition
+Before routing an Engineer, read `$MULTI_AI_CONFIG_HOME/policy.yaml` when that
+variable is set, otherwise `~/.multi-ai/policy.yaml`, if the file exists. The V1
+host policy may set `role_families.engineer` to `codex`, `claude` or `default`.
+Select the primary or fallback Engineer route in policy.yaml whose agent matches
+that family; `default` or no host policy uses the primary route. This preference
+does not alter competition lanes or review routing. Ignore and disclose a malformed
+or unknown host preference rather than inventing a route. Selecting a family here
+is an intentional host preference, not an availability fallback.
+
+Resolve each other role's primary agent, model and effort from policy.yaml. Competition
 uses its lane routes in place of ordinary role routes, keeping the assigned role
 explicit; review uses the **actual maker's family** lookup.
 Pass all three native options on each fresh worker-start:
@@ -114,7 +123,8 @@ cross-family coverage. Reuse a terminal only when its proven agent/model/effort
 and assigned role match the next task; otherwise start a fresh worker.
 Orca cannot combine model/effort selection with terminal reuse.
 
-Use only the configured fallback after confirmed route unavailability, following
+Outside an explicit Engineer host preference, use only the configured fallback
+after confirmed route unavailability, following
 native failed-attempt recovery; a timeout is not model unavailability. Record the
 substitution and any lost capability. For review, try the opposite-family primary
 and fallback; if unavailable, use the configured same_family_fallback in a fresh

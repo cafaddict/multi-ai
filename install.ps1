@@ -9,6 +9,7 @@ $ErrorActionPreference = 'Stop'
 npx --yes skills add https://github.com/hyunyul-XCENA/multi-ai/tree/dev --skill multi-ai --agent codex claude-code --global --yes
 if ($LASTEXITCODE -ne 0) { throw "Global skill installation failed (exit $LASTEXITCODE)." }
 Write-Output 'Installed multi-ai globally for Codex and Claude Code. Start a new session on this host.'
+Write-Output 'Host routing: & "$HOME\.agents\skills\multi-ai\configure.ps1" engineer <default|codex|claude>'
 if (-not $RecoveryProfile) { return }
 
 $source = Get-Item -LiteralPath $PSScriptRoot

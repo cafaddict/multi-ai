@@ -69,6 +69,33 @@ This covers all projects for that user on that host. Run once on Windows for loc
 projects and once on each remote execution host; Windows installation is not remote
 installation. No project-by-project installation or recurring prompt is needed.
 
+### Change the Engineer family on one host
+
+The installed configuration command stores one host-local preference outside the
+skill, so reinstalling or updating Multi-AI does not erase it. On Windows:
+
+```powershell
+& "$HOME\.agents\skills\multi-ai\configure.ps1" engineer claude
+```
+
+On Linux/macOS or an SSH host:
+
+```sh
+sh ~/.agents/skills/multi-ai/configure.sh engineer claude
+```
+
+Use `show` instead of `engineer claude` to inspect the setting. Use `engineer codex`
+to prefer the configured Codex route, or `engineer default` to return to policy.yaml's
+primary route. From a source clone, `./configure.ps1` or `sh ./configure.sh` works too.
+The command writes only `~/.multi-ai/policy.yaml`; set `MULTI_AI_CONFIG_HOME` to put
+that file elsewhere. Start a new Lead session after changing it, or ask an existing
+Lead to re-read the host policy.
+
+This V1 override selects only between the two Engineer routes already defined in
+policy.yaml; model names and effort remain centralized there. A Claude Engineer is
+still reviewed through the actual maker-family rule, normally by the configured
+Codex reviewer. Architect, Researcher and HARD competition routes are unchanged.
+
 For an intentionally project-scoped copy, use the CLI directly from the target root:
 
 ```sh
@@ -169,7 +196,8 @@ not synchronize settings to a different Orca installation.
 
 In the source clone, run `git pull --ff-only`, then re-run `./install.ps1` or
 `sh ./install.sh`. The scripts refresh the published global skill through the CLI.
-Review any custom edits in the installed policy before updating.
+Host preferences under `~/.multi-ai/` survive updates; direct edits inside the
+installed skill do not.
 
 To remove the global installation:
 
@@ -183,6 +211,8 @@ multi-ai.config.toml if you installed the optional profile. For project-scoped
 installations use `npx skills update multi-ai --project --yes` or remove without
 `--global`. Local-source CLI installations update by repeating their add command;
 skills 1.5.26 skips them in update. Manual-copy installations maintain both copies.
+The host policy is deliberately retained for a later reinstall; delete only
+`~/.multi-ai/policy.yaml` if you also want to remove that preference.
 
 ## Routing and remote work
 

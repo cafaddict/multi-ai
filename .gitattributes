@@ -1,2 +1,3 @@
 install.sh text eol=lf
+configure.sh text eol=lf
 codex-profile.toml text eol=lf
