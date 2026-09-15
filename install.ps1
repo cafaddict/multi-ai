@@ -10,7 +10,7 @@ npx --yes skills add https://github.com/hyunyul-XCENA/multi-ai/tree/dev --skill 
 if ($LASTEXITCODE -ne 0) { throw "Global skill installation failed (exit $LASTEXITCODE)." }
 $installedSkillPath = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.agents/skills/multi-ai'
 $npmCommand = (Get-Command npm.cmd -ErrorAction Stop).Source
-& $npmCommand install --global --ignore-scripts --no-audit --no-fund $installedSkillPath
+& $npmCommand install --global --install-links --ignore-scripts --no-audit --no-fund $installedSkillPath
 if ($LASTEXITCODE -ne 0) { throw "Global CLI installation failed (exit $LASTEXITCODE)." }
 Write-Output 'Installed multi-ai globally for Codex and Claude Code. Start a new session on this host.'
 Write-Output 'Host policy: multi-ai-cli tui | multi-ai-cli show | multi-ai-cli set <path> <value>'
