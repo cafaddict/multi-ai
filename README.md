@@ -83,6 +83,10 @@ unchanged settings continue to receive new defaults. Open the full terminal UI w
 multi-ai-cli tui
 ```
 
+The TUI derives its model choices from the installed policy and current overrides.
+Choose an agent, model and effort from menus; you do not need to remember or type a
+model ID. Direct `set` remains available for deliberately testing a new identifier.
+
 Or inspect and change any supported policy leaf directly:
 
 ```sh

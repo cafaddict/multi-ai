@@ -3,11 +3,11 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
+import select, { Separator } from '@inquirer/select';
 import { parse, stringify } from 'yaml';
 
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
 const AGENTS = ['codex', 'claude'];
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
 const skillHome = path.dirname(fileURLToPath(import.meta.url));
@@ -249,135 +249,212 @@ function setEngineerFamily(family) {
   console.log(`Host policy: ${configPath}`);
 }
 
-function select(title, options, selected = 0) {
+async function choose(message, choices, defaultValue) {
   if (!process.stdin.isTTY || !process.stdout.isTTY || !process.stdin.setRawMode) {
     throw new Error('TUI requires an interactive terminal. Use multi-ai-cli set <path> <value> instead.');
   }
-  let index = Math.max(0, Math.min(selected, options.length - 1));
-  let renderedLines = 0;
-  const render = () => {
-    if (renderedLines) {
-      readline.moveCursor(process.stdout, 0, -renderedLines);
-      readline.cursorTo(process.stdout, 0);
-      readline.clearScreenDown(process.stdout);
-    }
-    const lines = [title, 'Use ↑/↓ and Enter. Esc or q goes back.', '', ...options.map((option, i) => `${i === index ? '›' : ' '} ${option}`)];
-    process.stdout.write(`${lines.join('\n')}\n`);
-    renderedLines = lines.length;
-  };
-  readline.emitKeypressEvents(process.stdin);
-  process.stdin.setRawMode(true);
-  process.stdin.resume();
-  return new Promise((resolve) => {
-    const finish = (value) => {
-      process.stdin.off('keypress', onKeypress);
-      process.stdin.setRawMode(false);
-      process.stdin.pause();
-      resolve(value);
-    };
-    const onKeypress = (_input, key = {}) => {
-      if (key.name === 'up') index = (index + options.length - 1) % options.length;
-      else if (key.name === 'down') index = (index + 1) % options.length;
-      else if (key.name === 'return') return finish(index);
-      else if (key.name === 'escape' || key.name === 'q') return finish(null);
-      else if (key.ctrl && key.name === 'c') return finish(false);
-      else return;
-      render();
-    };
-    process.stdin.on('keypress', onKeypress);
-    render();
-  });
+  return select(
+    { message, choices, default: defaultValue, pageSize: 20, loop: false },
+    { clearPromptOnDone: true },
+  );
 }
 
-async function ask(question, initial) {
-  const terminal = readline.createInterface({ input: process.stdin, output: process.stdout });
-  const answer = await new Promise((resolve) => terminal.question(`${question} [${initial}]: `, resolve));
-  terminal.close();
-  return answer.trim() || String(initial);
+function screen(title, detail) {
+  console.clear();
+  console.log('╭─────────────────────────────────────────────────────────────╮');
+  console.log(`  Multi-AI Policy  ·  ${title}`);
+  if (detail) console.log(`  ${detail}`);
+  console.log('╰─────────────────────────────────────────────────────────────╯\n');
 }
 
 function routeLabel(route) {
   return `${route.agent} / ${route.model} / ${route.effort}`;
 }
 
-async function editRoute(effective, routePath) {
+function modelChoices(base, effective, agent) {
+  const models = new Map();
+  for (const policy of [base, effective]) {
+    for (const group of routeGroups) {
+      for (const slot of group.slots) {
+        const route = getPath(policy, `${group.path}.${slot}`);
+        if (route?.agent !== agent || !route.model) continue;
+        if (!models.has(route.model)) models.set(route.model, new Set());
+        models.get(route.model).add(`${group.label} · ${slot.replaceAll('_', ' ')}`);
+      }
+    }
+  }
+  return [...models.entries()].map(([model, uses]) => ({
+    name: model,
+    value: model,
+    description: `Configured for ${[...uses].slice(0, 3).join(', ')}`,
+  }));
+}
+
+async function editRoute(base, effective, routePath) {
   const current = getPath(effective, routePath);
-  const agentIndex = await select(`Agent for ${routePath}\nCurrent: ${routeLabel(current)}`, AGENTS, AGENTS.indexOf(current.agent));
-  if (agentIndex === false) return false;
-  if (agentIndex === null) return true;
-  const agent = AGENTS[agentIndex];
-  const model = await ask('Model identifier', current.model);
-  const effortIndex = await select(`Effort for ${routePath}\nAgent/model: ${agent} / ${model}`, EFFORTS, EFFORTS.indexOf(current.effort));
-  if (effortIndex === false) return false;
-  if (effortIndex === null) return true;
+  screen('Edit route', routePath);
+  const agent = await choose(
+    'Agent / provider family',
+    AGENTS.map((value) => ({
+      name: value === 'codex' ? 'Codex' : 'Claude Code',
+      value,
+      description: `Provider family: ${base.families[value]}`,
+    })),
+    current.agent,
+  );
+
+  const availableModels = modelChoices(base, effective, agent);
+  if (!availableModels.length) throw new Error(`No configured models are available for ${agent}.`);
+  const currentModel = current.agent === agent && availableModels.some(({ value }) => value === current.model)
+    ? current.model
+    : availableModels[0].value;
+  const model = await choose('Model', availableModels, currentModel);
+  const effort = await choose(
+    'Reasoning effort',
+    EFFORTS.map((value) => ({ name: value, value })),
+    current.effort,
+  );
+
+  const next = { agent, model, effort };
+  const action = await choose(
+    'Apply this route?',
+    [
+      { name: `Apply  ${routeLabel(next)}`, value: 'apply', description: 'Stage this route in the TUI.' },
+      { name: 'Cancel', value: 'cancel', description: 'Keep the current route.' },
+    ],
+    'apply',
+  );
+  if (action === 'cancel') return;
   setPath(effective, routePath, {
     agent: coerceValue(`${routePath}.agent`, agent),
     model: coerceValue(`${routePath}.model`, model),
-    effort: coerceValue(`${routePath}.effort`, EFFORTS[effortIndex]),
+    effort: coerceValue(`${routePath}.effort`, effort),
   });
-  return true;
 }
 
-async function editGroup(effective, group) {
+async function editGroup(base, effective, group) {
   while (true) {
-    const options = group.slots.map((slot) => `${slot}: ${routeLabel(getPath(effective, `${group.path}.${slot}`))}`);
-    options.push('Back');
-    const choice = await select(group.label, options);
-    if (choice === false) return false;
-    if (choice === null || choice === group.slots.length) return true;
-    const keepGoing = await editRoute(effective, `${group.path}.${group.slots[choice]}`);
-    if (!keepGoing) return false;
+    screen(group.label, 'Choose a route to edit');
+    const choice = await choose(
+      group.label,
+      [
+        ...group.slots.map((slot) => ({
+          name: slot.replaceAll('_', ' '),
+          value: slot,
+          description: routeLabel(getPath(effective, `${group.path}.${slot}`)),
+        })),
+        new Separator(),
+        { name: '← Back', value: 'back' },
+      ],
+    );
+    if (choice === 'back') return;
+    await editRoute(base, effective, `${group.path}.${choice}`);
   }
 }
 
 async function tui() {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    throw new Error('TUI requires an interactive terminal. Use multi-ai-cli set <path> <value> instead.');
+  }
   const { base, effective, legacy } = load();
-  if (legacy) console.log('The legacy Engineer preference will be migrated when you save.');
-  while (true) {
-    const changed = Object.keys(sparseOverrides(base, effective)).length;
-    const options = [
-      ...routeGroups.map((group) => group.label),
-      `Revision rounds: ${effective.revision_rounds}`,
-      'Restore installed defaults',
-      `Save and exit${changed ? ` (${changed} overrides)` : ''}`,
-      'Discard and exit',
-    ];
-    const choice = await select('Multi-AI policy', options);
-    if (choice === false) {
+  try {
+    while (true) {
+      const changed = Object.keys(sparseOverrides(base, effective)).length;
+      screen(
+        'Host configuration',
+        `${changed} override${changed === 1 ? '' : 's'} · ${configPath}${legacy ? ' · legacy setting loaded' : ''}`,
+      );
+      const choice = await choose(
+        'What would you like to configure?',
+        [
+          new Separator('── Roles ──'),
+          ...routeGroups.slice(0, 4).map((group, index) => ({
+            name: group.label,
+            value: `group:${index}`,
+            description: `primary: ${routeLabel(getPath(effective, `${group.path}.primary`))}`,
+          })),
+          new Separator('── Review ──'),
+          ...routeGroups.slice(4, 6).map((group, offset) => ({
+            name: group.label,
+            value: `group:${offset + 4}`,
+            description: `primary: ${routeLabel(getPath(effective, `${group.path}.primary`))}`,
+          })),
+          new Separator('── Competition ──'),
+          ...routeGroups.slice(6).map((group, offset) => ({
+            name: group.label,
+            value: `group:${offset + 6}`,
+            description: `primary: ${routeLabel(getPath(effective, `${group.path}.primary`))}`,
+          })),
+          new Separator('── Policy ──'),
+          {
+            name: 'Revision rounds',
+            value: 'revision',
+            description: `Current limit: ${effective.revision_rounds}`,
+          },
+          { name: 'Restore installed defaults', value: 'restore', description: 'Clear every staged host override.' },
+          new Separator(),
+          {
+            name: `✓ Save and exit${changed ? ` (${changed} overrides)` : ''}`,
+            value: 'save',
+            description: 'Write the host policy and exit.',
+          },
+          { name: '× Discard and exit', value: 'discard', description: 'Leave the host policy unchanged.' },
+        ],
+        'group:0',
+      );
+
+      if (choice.startsWith('group:')) {
+        await editGroup(base, effective, routeGroups[Number(choice.split(':')[1])]);
+        continue;
+      }
+      if (choice === 'revision') {
+        screen('Revision rounds', 'Maximum correction cycles before the Lead reports a blocker');
+        effective.revision_rounds = await choose(
+          'Revision-round limit',
+          Array.from({ length: 10 }, (_, index) => ({ name: String(index + 1), value: index + 1 })),
+          effective.revision_rounds,
+        );
+        continue;
+      }
+      if (choice === 'restore') {
+        const confirmed = await choose(
+          'Restore every installed default?',
+          [
+            { name: 'No, keep my staged settings', value: false },
+            { name: 'Yes, clear all host overrides', value: true },
+          ],
+          false,
+        );
+        if (confirmed) {
+          const restored = clone(base);
+          for (const key of Object.keys(effective)) delete effective[key];
+          Object.assign(effective, restored);
+        }
+        continue;
+      }
+      if (choice === 'discard') {
+        console.clear();
+        console.log('No changes saved.');
+        return;
+      }
+      if (choice === 'save') {
+        const overrides = sparseOverrides(base, effective);
+        writeOverrides(overrides);
+        console.clear();
+        console.log(`✓ Saved ${Object.keys(overrides).length} override(s).`);
+        console.log(`  ${configPath}`);
+        console.log('\nStart a new Lead session after changing its route.');
+        return;
+      }
+    }
+  } catch (error) {
+    if (error?.name === 'ExitPromptError') {
+      console.clear();
+      console.log('No changes saved.');
       process.exitCode = 130;
       return;
     }
-    if (choice === null || choice === options.length - 1) {
-      console.log('No changes saved.');
-      return;
-    }
-    if (choice < routeGroups.length) {
-      const keepGoing = await editGroup(effective, routeGroups[choice]);
-      if (!keepGoing) {
-        process.exitCode = 130;
-        return;
-      }
-      continue;
-    }
-    if (choice === routeGroups.length) {
-      const value = await ask('Revision rounds (1-10)', effective.revision_rounds);
-      effective.revision_rounds = coerceValue('revision_rounds', value);
-      continue;
-    }
-    if (choice === routeGroups.length + 1) {
-      const restored = clone(base);
-      for (const key of Object.keys(effective)) delete effective[key];
-      Object.assign(effective, restored);
-      continue;
-    }
-    if (choice === routeGroups.length + 2) {
-      const overrides = sparseOverrides(base, effective);
-      writeOverrides(overrides);
-      console.log(`Saved ${Object.keys(overrides).length} override(s).`);
-      console.log(`Host policy: ${configPath}`);
-      console.log('Start a new Lead session, or ask the active Lead to re-read the host policy.');
-      return;
-    }
+    throw error;
   }
 }
 
