@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parse, stringify } from 'yaml';
 
-const VERSION = '0.4.0';
+const VERSION = '0.5.0';
 const AGENTS = ['codex', 'claude'];
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
 const CODEX_RULE_MARKER = '# Managed by multi-ai-cli.';
@@ -57,14 +57,32 @@ for (const group of routeGroups) {
   }
 }
 
+// unset accepts any prefix of an editable path, so one command can restore a whole
+// route (lead.primary), a role (roles.architect), or a section (competition).
+const unsetTargets = new Set(editablePaths);
+for (const dottedPath of editablePaths) {
+  const keys = dottedPath.split('.');
+  for (let index = 1; index < keys.length; index += 1) unsetTargets.add(keys.slice(0, index).join('.'));
+}
+
+const EFFORT_NOTES = {
+  low: 'Cheapest and fastest. Subagents and simple tasks.',
+  medium: 'Balanced. Enough for most routine work.',
+  high: 'The provider default. Intelligence-sensitive work.',
+  xhigh: 'Best for most coding and agentic work.',
+  max: 'Correctness matters more than cost.',
+};
+
 function usage() {
   return `Usage:
   multi-ai-cli                         Show effective policy and commands
   multi-ai-cli show                    Show the effective policy
   multi-ai-cli get <path>              Read one effective value
   multi-ai-cli set <path> <value>      Override one routing value
-  multi-ai-cli unset <path>            Restore one value to the installed default
-  multi-ai-cli reset                   Restore all installed defaults
+  multi-ai-cli unset <path>            Restore a value, route, role, or section to its default
+  multi-ai-cli reset                   Restore every installed default
+  multi-ai-cli defaults [path]         Show the installed defaults
+  multi-ai-cli diff                    Show every value that differs from its default
   multi-ai-cli engineer <family>       Prefer default, codex, or claude Engineer routes
   multi-ai-cli tui                     Configure the full policy interactively
   multi-ai-cli codex-rules install [orca-command]
@@ -75,7 +93,10 @@ function usage() {
 Examples:
   multi-ai-cli set lead.primary.effort xhigh
   multi-ai-cli set roles.engineer.primary.model claude-opus-5
-  multi-ai-cli get roles.reviewer.by_maker_family.anthropic.primary.model`;
+  multi-ai-cli get roles.reviewer.by_maker_family.anthropic.primary.model
+  multi-ai-cli unset lead.primary.effort      One value back to its default
+  multi-ai-cli unset lead.primary             One whole route back to its default
+  multi-ai-cli unset roles.engineer           Both Engineer routes back to their defaults`;
 }
 
 function resolveExecutable(command) {
@@ -367,13 +388,55 @@ function setOverride(dottedPath, rawValue) {
   console.log(`Host policy: ${configPath}`);
 }
 
-function unsetOverride(dottedPath) {
-  validatePath(dottedPath);
+function restorablePaths(prefix) {
+  if (editablePaths.has(prefix)) return [prefix];
+  return [...editablePaths].filter((dottedPath) => dottedPath.startsWith(`${prefix}.`)).sort();
+}
+
+function unknownTargetMessage(prefix) {
+  const sections = [...unsetTargets].filter((target) => !editablePaths.has(target)).sort();
+  return [
+    `Unsupported policy path: ${prefix}`,
+    'Restore a route, role, or section:',
+    ...sections.map((target) => `  ${target}`),
+    'Or one value, such as lead.primary.effort.',
+    'Run multi-ai-cli defaults for every restorable value.',
+  ].join('\n');
+}
+
+function unsetOverride(prefix) {
+  const paths = restorablePaths(prefix);
+  if (!paths.length) throw new Error(unknownTargetMessage(prefix));
   const { base, effective } = load();
-  setPath(effective, dottedPath, getPath(base, dottedPath));
+  const restored = paths.filter((dottedPath) => getPath(effective, dottedPath) !== getPath(base, dottedPath));
+  for (const dottedPath of paths) setPath(effective, dottedPath, getPath(base, dottedPath));
   writeOverrides(sparseOverrides(base, effective));
-  console.log(`${dottedPath}: ${getPath(base, dottedPath)} (installed default)`);
+  if (!restored.length) console.log(`${prefix} already matches the installed default.`);
+  for (const dottedPath of restored) console.log(`${dottedPath}: ${getPath(base, dottedPath)} (installed default)`);
   console.log(`Host policy: ${configPath}`);
+}
+
+function showDefaults(prefix) {
+  const base = readBasePolicy();
+  const paths = prefix ? restorablePaths(prefix) : [...editablePaths].sort();
+  if (!paths.length) throw new Error(unknownTargetMessage(prefix));
+  console.log(`# Installed defaults: ${basePolicyPath}`);
+  for (const dottedPath of paths) console.log(`${dottedPath}: ${getPath(base, dottedPath)}`);
+}
+
+function showDiff() {
+  const { base, effective, legacy } = load();
+  const changed = Object.entries(sparseOverrides(base, effective));
+  console.log(`# Host overrides: ${configPath}${legacy ? ' (legacy host preference applied)' : ''}`);
+  if (!changed.length) {
+    console.log('Every value matches the installed default.');
+    return;
+  }
+  for (const [dottedPath, value] of changed) {
+    console.log(`${dottedPath}: ${getPath(base, dottedPath)} -> ${value}`);
+  }
+  console.log(`\nRestore one: multi-ai-cli unset <path>`);
+  console.log('Restore all: multi-ai-cli reset');
 }
 
 function setEngineerFamily(family) {
@@ -476,7 +539,9 @@ function screen(title, detail) {
   console.clear();
   console.log('╭─────────────────────────────────────────────────────────────╮');
   console.log(`  Multi-AI Policy  ·  ${title}`);
-  if (detail) console.log(`  ${detail}`);
+  for (const line of [detail].flat()) {
+    if (line) console.log(`  ${line}`);
+  }
   console.log('╰─────────────────────────────────────────────────────────────╯\n');
 }
 
@@ -484,7 +549,19 @@ function routeLabel(route) {
   return `${route.agent} / ${route.model} / ${route.effort}`;
 }
 
-function modelChoices(base, effective, agent) {
+function routesEqual(left, right) {
+  return ['agent', 'model', 'effort'].every((field) => left?.[field] === right?.[field]);
+}
+
+// Tags the option a list is currently set to, and the one the installed policy ships.
+function optionTag(value, current, installedDefault) {
+  const tags = [];
+  if (value === current) tags.push('current');
+  if (value === installedDefault) tags.push('default');
+  return tags.length ? `  <- ${tags.join(' · ')}` : '';
+}
+
+function modelChoices(base, effective, agent, current, installedDefault) {
   const models = new Map();
   for (const policy of [base, effective]) {
     for (const group of routeGroups) {
@@ -497,23 +574,30 @@ function modelChoices(base, effective, agent) {
     }
   }
   return [...models.entries()].map(([model, uses]) => ({
-    name: model,
+    name: `${model}${optionTag(model, current, installedDefault)}`,
     value: model,
     description: `Configured for ${[...uses].slice(0, 3).join(', ')}`,
   }));
 }
 
 async function editRoute(base, effective, routePath) {
-  const current = getPath(effective, routePath);
-  const draft = { ...current };
+  const installedDefault = getPath(base, routePath);
+  const draft = { ...getPath(effective, routePath) };
   let step = 0;
   while (true) {
-    screen('Edit route', `${routePath} · step ${step + 1} of 4`);
+    const current = getPath(effective, routePath);
+    const atDefault = routesEqual(current, installedDefault);
+    screen('Edit route', [
+      `${routePath}  ·  step ${step + 1} of 4`,
+      `Current: ${routeLabel(current)}${atDefault ? '  (installed default)' : ''}`,
+      atDefault ? undefined : `Default: ${routeLabel(installedDefault)}`,
+      `Editing: ${routeLabel(draft)}`,
+    ]);
     if (step === 0) {
       const agent = await choose(
         'Agent / provider family',
         AGENTS.map((value) => ({
-          name: value === 'codex' ? 'Codex' : 'Claude Code',
+          name: `${value === 'codex' ? 'Codex' : 'Claude Code'}${optionTag(value, current.agent, installedDefault.agent)}`,
           value,
           description: `Provider family: ${base.families[value]}`,
         })),
@@ -528,7 +612,13 @@ async function editRoute(base, effective, routePath) {
       continue;
     }
     if (step === 1) {
-      const available = modelChoices(base, effective, draft.agent);
+      const available = modelChoices(
+        base,
+        effective,
+        draft.agent,
+        draft.agent === current.agent ? current.model : undefined,
+        draft.agent === installedDefault.agent ? installedDefault.model : undefined,
+      );
       const model = await choose('Model', available, draft.model);
       if (model === BACK) {
         step = 0;
@@ -541,7 +631,11 @@ async function editRoute(base, effective, routePath) {
     if (step === 2) {
       const effort = await choose(
         'Reasoning effort',
-        EFFORTS.map((value) => ({ name: value, value })),
+        EFFORTS.map((value) => ({
+          name: `${value}${optionTag(value, current.effort, installedDefault.effort)}`,
+          value,
+          description: EFFORT_NOTES[value],
+        })),
         draft.effort,
       );
       if (effort === BACK) {
@@ -556,6 +650,13 @@ async function editRoute(base, effective, routePath) {
       'Apply this route?',
       [
         { name: `Apply  ${routeLabel(draft)}`, value: 'apply', description: 'Stage this route in the TUI.' },
+        {
+          name: `Restore default  ${routeLabel(installedDefault)}`,
+          value: 'restore',
+          description: atDefault
+            ? 'This route already matches the installed default.'
+            : 'Discard the draft and stage the installed default instead.',
+        },
         { name: 'Cancel', value: 'cancel', description: 'Keep the current route.' },
       ],
       'apply',
@@ -565,6 +666,10 @@ async function editRoute(base, effective, routePath) {
       continue;
     }
     if (action === 'cancel') return;
+    if (action === 'restore') {
+      setPath(effective, routePath, clone(installedDefault));
+      return;
+    }
     setPath(effective, routePath, {
       agent: coerceValue(`${routePath}.agent`, draft.agent),
       model: coerceValue(`${routePath}.model`, draft.model),
@@ -575,22 +680,43 @@ async function editRoute(base, effective, routePath) {
 }
 
 async function editGroup(base, effective, group) {
+  const slotPath = (slot) => `${group.path}.${slot}`;
+  const slotAtDefault = (slot) => routesEqual(getPath(effective, slotPath(slot)), getPath(base, slotPath(slot)));
   while (true) {
-    screen(group.label, 'Choose a route to edit');
+    const drifted = group.slots.filter((slot) => !slotAtDefault(slot));
+    screen(group.label, [
+      'Choose a route to edit',
+      drifted.length
+        ? `${drifted.length} of ${group.slots.length} routes differ from the installed default`
+        : 'Every route matches the installed default',
+    ]);
     const choice = await choose(
       group.label,
       [
         ...group.slots.map((slot) => ({
-          name: slot.replaceAll('_', ' '),
+          name: `${slot.replaceAll('_', ' ').padEnd(21)}${routeLabel(getPath(effective, slotPath(slot)))}${slotAtDefault(slot) ? '' : '  *'}`,
           value: slot,
-          description: routeLabel(getPath(effective, `${group.path}.${slot}`)),
+          description: slotAtDefault(slot)
+            ? 'Installed default.'
+            : `* changed · installed default: ${routeLabel(getPath(base, slotPath(slot)))}`,
         })),
         new Separator(),
+        ...(drifted.length
+          ? [{
+            name: `Restore ${group.label} defaults`,
+            value: 'restore',
+            description: `Stage the installed default for ${drifted.length} route${drifted.length === 1 ? '' : 's'}.`,
+          }]
+          : []),
         { name: '← Back', value: 'back' },
       ],
     );
     if (choice === BACK || choice === 'back') return;
-    await editRoute(base, effective, `${group.path}.${choice}`);
+    if (choice === 'restore') {
+      for (const slot of group.slots) setPath(effective, slotPath(slot), clone(getPath(base, slotPath(slot))));
+      continue;
+    }
+    await editRoute(base, effective, slotPath(choice));
   }
 }
 
@@ -599,6 +725,16 @@ async function tui() {
     throw new Error('TUI requires an interactive terminal. Use multi-ai-cli set <path> <value> instead.');
   }
   const { base, effective, legacy } = load();
+  const groupChoice = (group, index) => {
+    const drifted = group.slots.some(
+      (slot) => !routesEqual(getPath(effective, `${group.path}.${slot}`), getPath(base, `${group.path}.${slot}`)),
+    );
+    return {
+      name: `${group.label}${drifted ? '  *' : ''}`,
+      value: `group:${index}`,
+      description: `primary: ${routeLabel(getPath(effective, `${group.path}.primary`))}${drifted ? '   * differs from the installed default' : ''}`,
+    };
+  };
   try {
     while (true) {
       const changed = Object.keys(sparseOverrides(base, effective)).length;
@@ -610,30 +746,24 @@ async function tui() {
         'What would you like to configure?',
         [
           new Separator('── Roles ──'),
-          ...routeGroups.slice(0, 4).map((group, index) => ({
-            name: group.label,
-            value: `group:${index}`,
-            description: `primary: ${routeLabel(getPath(effective, `${group.path}.primary`))}`,
-          })),
+          ...routeGroups.slice(0, 4).map((group, index) => groupChoice(group, index)),
           new Separator('── Review ──'),
-          ...routeGroups.slice(4, 6).map((group, offset) => ({
-            name: group.label,
-            value: `group:${offset + 4}`,
-            description: `primary: ${routeLabel(getPath(effective, `${group.path}.primary`))}`,
-          })),
+          ...routeGroups.slice(4, 6).map((group, offset) => groupChoice(group, offset + 4)),
           new Separator('── Competition ──'),
-          ...routeGroups.slice(6).map((group, offset) => ({
-            name: group.label,
-            value: `group:${offset + 6}`,
-            description: `primary: ${routeLabel(getPath(effective, `${group.path}.primary`))}`,
-          })),
+          ...routeGroups.slice(6).map((group, offset) => groupChoice(group, offset + 6)),
           new Separator('── Policy ──'),
           {
             name: 'Revision rounds',
             value: 'revision',
             description: `Current limit: ${effective.revision_rounds}`,
           },
-          { name: 'Restore installed defaults', value: 'restore', description: 'Clear every staged host override.' },
+          {
+            name: 'Restore installed defaults',
+            value: 'restore',
+            description: changed
+              ? `Clear all ${changed} staged override${changed === 1 ? '' : 's'}.`
+              : 'Nothing to clear. Everything already matches the installed default.',
+          },
           new Separator(),
           {
             name: `✓ Save and exit${changed ? ` (${changed} overrides)` : ''}`,
@@ -717,9 +847,12 @@ async function main() {
   if (args.length === 3 && args[0] === 'codex-rules' && args[1] === 'install') return installCodexRules(args[2]);
   if (args.length === 2 && args[0] === 'codex-rules' && args[1] === 'show') return showCodexRules();
   if (args.length === 2 && args[0] === 'codex-rules' && args[1] === 'remove') return removeCodexRules();
+  if (args.length === 1 && args[0] === 'diff') return showDiff();
+  if (args.length === 1 && args[0] === 'defaults') return showDefaults();
+  if (args.length === 2 && args[0] === 'defaults') return showDefaults(args[1]);
   if (args.length === 1 && args[0] === 'reset') {
     writeOverrides({});
-    console.log(`Restored installed defaults.\nHost policy: ${configPath}`);
+    console.log(`Restored every installed default.\nHost policy: ${configPath}`);
     return;
   }
   if (args.length === 2 && args[0] === 'get') {

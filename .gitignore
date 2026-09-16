@@ -1,0 +1,8 @@
+# CLI dependencies, restored by the installer.
+node_modules/
+
+# Local install artifacts. The installer copies this skill into ~/.agents and
+# ~/.claude; those copies must not be committed back into the skill itself.
+.agents/
+.claude/
+skills-lock.json

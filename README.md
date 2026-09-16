@@ -113,6 +113,12 @@ Choose an agent, model and effort from menus; you do not need to remember or typ
 model ID. Use `Esc` or `q` to return one step; at the root they exit without saving.
 Direct `set` remains available for deliberately testing a new identifier.
 
+Every TUI screen shows what a route is set to right now. Role menus list each route
+as `agent / model / effort` and mark the ones that differ from the installed policy
+with `*`; the route editor prints Current, Default and Editing in its header and tags
+the agent, model and effort you are on with `<- current` and `<- default`. Role menus
+and the route editor both offer a restore entry that stages the installed default.
+
 Or inspect and change any supported policy leaf directly:
 
 ```sh
@@ -121,7 +127,26 @@ multi-ai-cli get roles.engineer.primary.model
 multi-ai-cli set roles.engineer.primary.agent claude
 multi-ai-cli set roles.engineer.primary.model claude-opus-5
 multi-ai-cli set roles.engineer.primary.effort high
-multi-ai-cli unset roles.engineer.primary.model
+```
+
+To go back to what the installed policy ships, `unset` takes a single value or any
+path above one, so a whole route, role or section restores in one command:
+
+```sh
+multi-ai-cli unset roles.engineer.primary.model   # one value
+multi-ai-cli unset roles.engineer.primary         # agent, model and effort
+multi-ai-cli unset roles.engineer                 # both Engineer routes
+multi-ai-cli unset competition                    # both competition lanes
+multi-ai-cli reset                                # every installed default
+```
+
+`diff` lists everything that differs from the installed policy, and `defaults` prints
+what the installed policy ships:
+
+```sh
+multi-ai-cli diff
+multi-ai-cli defaults
+multi-ai-cli defaults roles.architect
 ```
 
 The existing family shortcut remains available:
