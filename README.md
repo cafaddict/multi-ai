@@ -119,6 +119,52 @@ with `*`; the route editor prints Current, Default and Editing in its header and
 the agent, model and effort you are on with `<- current` and `<- default`. Role menus
 and the route editor both offer a restore entry that stages the installed default.
 
+### Resolve a route before dispatch
+
+The Lead resolves each launch with `route`, which merges the installed policy with
+the host overrides and prints the flags for one `worker-start`:
+
+```sh
+multi-ai-cli route architect
+# --agent claude --model claude-fable-5-1 --effort medium
+
+orca orchestration worker-start $(multi-ai-cli route engineer) --role engineer
+```
+
+Because it reads the policy from disk on every call, editing the policy mid-session
+reaches the next worker. Reviewer routes are keyed by the family that wrote the
+change, so they need `--maker-family`.
+
+`route` resolves; it never decides availability. A provider that is rate-limited or
+down only shows up when `worker-start` fails, so stepping down the ladder stays the
+Lead's call after a confirmed failure. Ask for a rung with `--step`, and see what a
+family outage leaves with `--ladder`:
+
+```sh
+multi-ai-cli route reviewer --maker-family anthropic --ladder
+# primary               --agent codex --model gpt-6-astra --effort high
+# fallback              --agent codex --model gpt-5.6-sol --effort high
+# same_family_fallback  --agent claude --model claude-fable-5-1 --effort medium   # same family as the maker
+```
+
+A rung that is not the primary, or that puts the reviewer in the maker's own family,
+prints what must be disclosed. Those warnings go to stderr, so command substitution
+still captures only the flags:
+
+```sh
+multi-ai-cli route reviewer --maker-family anthropic --step same_family_fallback
+# --agent claude --model claude-fable-5-1 --effort medium
+# ...and on stderr:
+# # Not the primary route. Use it only after confirmed unavailability, and record the substitution.
+# # Same family as the maker. Cross-family review independence is lost.
+# # Record the reduced diversity in the review and in the decision.
+```
+
+Use `--json` for the full resolution, including the policy paths it came from, to
+record launch provenance with the Task.
+
+### Inspect and change values directly
+
 Or inspect and change any supported policy leaf directly:
 
 ```sh

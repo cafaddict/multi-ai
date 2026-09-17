@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parse, stringify } from 'yaml';
 
-const VERSION = '0.5.0';
+const VERSION = '0.6.0';
 const AGENTS = ['codex', 'claude'];
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
 const CODEX_RULE_MARKER = '# Managed by multi-ai-cli.';
@@ -65,6 +65,20 @@ for (const dottedPath of editablePaths) {
   for (let index = 1; index < keys.length; index += 1) unsetTargets.add(keys.slice(0, index).join('.'));
 }
 
+// Launch targets the Lead resolves before each worker-start. Reviewer routes are
+// keyed by the family that actually wrote the change, so they need --maker-family.
+const routeTargets = {
+  lead: { label: 'Lead', path: 'lead' },
+  architect: { label: 'Architect', path: 'roles.architect' },
+  engineer: { label: 'Engineer', path: 'roles.engineer' },
+  researcher: { label: 'Researcher', path: 'roles.researcher' },
+  reviewer: { label: 'Reviewer', byMakerFamily: true },
+  'competition-primary': { label: 'Competition primary-family lane', path: 'competition.lanes.primary_family' },
+  'competition-alternate': { label: 'Competition alternate-family lane', path: 'competition.lanes.alternate_family' },
+};
+const ROUTE_STEPS = ['primary', 'fallback', 'same_family_fallback'];
+const MAKER_FAMILIES = ['openai', 'anthropic'];
+
 const EFFORT_NOTES = {
   low: 'Cheapest and fastest. Subagents and simple tasks.',
   medium: 'Balanced. Enough for most routine work.',
@@ -83,6 +97,7 @@ function usage() {
   multi-ai-cli reset                   Restore every installed default
   multi-ai-cli defaults [path]         Show the installed defaults
   multi-ai-cli diff                    Show every value that differs from its default
+  multi-ai-cli route <target> [opts]   Print launch flags for one worker-start
   multi-ai-cli engineer <family>       Prefer default, codex, or claude Engineer routes
   multi-ai-cli tui                     Configure the full policy interactively
   multi-ai-cli codex-rules install [orca-command]
@@ -96,7 +111,19 @@ Examples:
   multi-ai-cli get roles.reviewer.by_maker_family.anthropic.primary.model
   multi-ai-cli unset lead.primary.effort      One value back to its default
   multi-ai-cli unset lead.primary             One whole route back to its default
-  multi-ai-cli unset roles.engineer           Both Engineer routes back to their defaults`;
+  multi-ai-cli unset roles.engineer           Both Engineer routes back to their defaults
+
+Route targets: lead, architect, engineer, researcher, reviewer,
+               competition-primary, competition-alternate
+Route options: --maker-family <openai|anthropic>   Required for reviewer
+               --step <primary|fallback|same_family_fallback>
+               --ladder   Show every step for that target
+               --json     Full resolution, for launch provenance
+
+  multi-ai-cli route architect
+  multi-ai-cli route reviewer --maker-family anthropic
+  multi-ai-cli route reviewer --maker-family anthropic --step same_family_fallback
+  orca orchestration worker-start $(multi-ai-cli route engineer) ...`;
 }
 
 function resolveExecutable(command) {
@@ -456,6 +483,109 @@ function setEngineerFamily(family) {
   console.log(`Engineer primary: ${effective.roles.engineer.primary.agent} / ${effective.roles.engineer.primary.model} / ${effective.roles.engineer.primary.effort}`);
   console.log(`Engineer fallback: ${effective.roles.engineer.fallback.agent} / ${effective.roles.engineer.fallback.model} / ${effective.roles.engineer.fallback.effort}`);
   console.log(`Host policy: ${configPath}`);
+}
+
+function routeFlags(route) {
+  return `--agent ${route.agent} --model ${route.model} --effort ${route.effort}`;
+}
+
+function routeGroupPath(target, makerFamily) {
+  const entry = routeTargets[target];
+  if (!entry) {
+    throw new Error(`Unknown route target: ${target}\nTargets: ${Object.keys(routeTargets).join(', ')}`);
+  }
+  if (!entry.byMakerFamily) return entry.path;
+  if (!MAKER_FAMILIES.includes(makerFamily)) {
+    throw new Error(
+      `reviewer needs --maker-family <${MAKER_FAMILIES.join('|')}>: the family that actually wrote the change.`,
+    );
+  }
+  return `roles.reviewer.by_maker_family.${makerFamily}`;
+}
+
+// Resolves one rung of the ladder. Availability is not knowable here, so stepping
+// down stays the caller's decision after a confirmed launch failure.
+function resolveRoute(policy, target, { makerFamily, step }) {
+  if (!ROUTE_STEPS.includes(step)) throw new Error(`step must be one of: ${ROUTE_STEPS.join(', ')}.`);
+  if (step === 'same_family_fallback' && target !== 'reviewer') {
+    throw new Error('same_family_fallback exists only for reviewer.');
+  }
+  const groupPath = routeGroupPath(target, makerFamily);
+  const route = getPath(policy, `${groupPath}.${step}`);
+  if (!route) {
+    throw new Error(
+      step === 'same_family_fallback'
+        ? `Policy has no same_family_fallback for ${target}. Opposite-family coverage is required instead.`
+        : `Policy has no ${step} route for ${target}.`,
+    );
+  }
+  const family = policy.families?.[route.agent];
+  const independent = target === 'reviewer' ? family !== makerFamily : undefined;
+  const notes = [];
+  if (step !== 'primary') {
+    notes.push('Not the primary route. Use it only after confirmed unavailability, and record the substitution.');
+  }
+  if (independent === false) {
+    notes.push('Same family as the maker. Cross-family review independence is lost.');
+    notes.push('Record the reduced diversity in the review and in the decision.');
+  }
+  return { target, makerFamily, step, groupPath, route, family, independent, notes };
+}
+
+function parseRouteArgs(args) {
+  const [target, ...rest] = args;
+  const options = { step: 'primary', json: false, ladder: false, makerFamily: undefined };
+  for (let index = 0; index < rest.length; index += 1) {
+    const arg = rest[index];
+    if (arg === '--json') options.json = true;
+    else if (arg === '--ladder') options.ladder = true;
+    else if (arg === '--step' || arg === '--maker-family') {
+      const value = rest[index + 1];
+      if (value === undefined) throw new Error(`${arg} needs a value.`);
+      if (arg === '--step') options.step = value;
+      else options.makerFamily = value;
+      index += 1;
+    } else throw new Error(`Unknown route option: ${arg}`);
+  }
+  return { target, options };
+}
+
+function showRoute(args) {
+  const { target, options } = parseRouteArgs(args);
+  const { effective } = load();
+
+  if (options.ladder) {
+    const groupPath = routeGroupPath(target, options.makerFamily);
+    for (const step of ROUTE_STEPS) {
+      if (!getPath(effective, `${groupPath}.${step}`)) continue;
+      const resolved = resolveRoute(effective, target, { ...options, step });
+      const marker = resolved.independent === false ? '   # same family as the maker' : '';
+      console.log(`${step.padEnd(22)}${routeFlags(resolved.route)}${marker}`);
+    }
+    return;
+  }
+
+  const resolved = resolveRoute(effective, target, options);
+  if (options.json) {
+    console.log(JSON.stringify({
+      target: resolved.target,
+      maker_family: resolved.makerFamily ?? null,
+      step: resolved.step,
+      agent: resolved.route.agent,
+      model: resolved.route.model,
+      effort: resolved.route.effort,
+      family: resolved.family ?? null,
+      independent_of_maker: resolved.independent ?? null,
+      flags: routeFlags(resolved.route),
+      notes: resolved.notes,
+      installed_policy: basePolicyPath,
+      host_policy: fs.existsSync(configPath) ? configPath : null,
+    }, null, 2));
+  } else {
+    console.log(routeFlags(resolved.route));
+  }
+  // Warnings go to stderr so command substitution captures only the flags.
+  for (const note of resolved.notes) console.error(`# ${note}`);
 }
 
 async function choose(message, choices, defaultValue) {
@@ -847,6 +977,7 @@ async function main() {
   if (args.length === 3 && args[0] === 'codex-rules' && args[1] === 'install') return installCodexRules(args[2]);
   if (args.length === 2 && args[0] === 'codex-rules' && args[1] === 'show') return showCodexRules();
   if (args.length === 2 && args[0] === 'codex-rules' && args[1] === 'remove') return removeCodexRules();
+  if (args.length >= 2 && args[0] === 'route') return showRoute(args.slice(1));
   if (args.length === 1 && args[0] === 'diff') return showDiff();
   if (args.length === 1 && args[0] === 'defaults') return showDefaults();
   if (args.length === 2 && args[0] === 'defaults') return showDefaults(args[1]);

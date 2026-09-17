@@ -100,19 +100,17 @@ When competition is justified, prepare the briefs with [competition.md](prompts/
 ## Explicit intelligence routing
 
 Context may inherit. Intelligence configuration should be explicit.
-Start with policy.yaml. Then read `$MULTI_AI_CONFIG_HOME/policy.yaml` when that
-variable is set, otherwise `~/.multi-ai/policy.yaml`, if it exists. A version 2
-host policy contains an `overrides` mapping whose dotted keys replace matching
-leaf values in the installed policy. Apply only known route `agent`, `model`,
-`effort`, and `revision_rounds` keys; ignore and disclose a malformed file or
-unknown key rather than inventing a route. The configuration CLI writes only
-differences, so all other values continue to follow the installed policy. A legacy
-version 1 `role_families.engineer` preference selects the matching installed
-Engineer route until the CLI migrates it on its next write.
+Resolve each route with `multi-ai-cli route <target>` immediately before its
+worker-start and pass the stdout verbatim; the command lists its own targets. It
+merges the installed policy with the host overrides, so a policy edit reaches the
+next worker. Never reuse a route resolved earlier in the session and never
+hand-assemble one from policy.yaml; a stale or retyped route is a routing error.
+A non-zero exit resolved nothing: do not launch on a guess. If the command is
+unavailable, read policy.yaml and the host policy directly, apply only known
+route keys, and disclose that.
 
-Resolve every role from that effective policy. Competition uses its lane routes
-in place of ordinary role routes, keeping the assigned role explicit; review uses
-the **actual maker's family** lookup.
+Competition uses its lane routes in place of ordinary role routes, keeping the
+assigned role explicit; review uses the **actual maker's family** lookup.
 Pass all three native options on each fresh worker-start:
 `--agent`, `--model`, `--effort`. Set the assigned role explicitly in the task spec.
 Do not pass unset values or let a configured role inherit launcher defaults.
@@ -125,8 +123,10 @@ and assigned role match the next task; otherwise start a fresh worker.
 Orca cannot combine model/effort selection with terminal reuse.
 
 Use a configured fallback only after confirmed primary-route unavailability, following
-native failed-attempt recovery; a timeout is not model unavailability. Record the
-substitution and any lost capability. For review, try the opposite-family primary
+native failed-attempt recovery; a timeout is not model unavailability. `route` cannot
+know availability, so it never steps down on its own: ask for a rung with `--step`,
+and read `--ladder` to see what a family outage leaves. Record the substitution
+and any lost capability. For review, try the opposite-family primary
 and fallback; if unavailable, use the configured same_family_fallback in a fresh
 independent checker session. Record reduced diversity in the review and decision.
 An absent same_family_fallback requires opposite-family coverage.
