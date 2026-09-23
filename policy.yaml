@@ -5,29 +5,29 @@ families: {codex: openai, claude: anthropic}
 # Default identifiers live here. Host overrides may replace route leaves.
 lead:
   primary: {agent: codex, model: gpt-6-astra, effort: xhigh}
-  fallback: {agent: claude, model: "claude-fable-5-1[1m]", effort: medium}
+  fallback: {agent: claude, model: claude-fable-5-1, effort: medium}
 
 roles:
   architect:
-    primary: {agent: claude, model: "claude-fable-5-1[1m]", effort: medium}
-    fallback: {agent: claude, model: "claude-opus-5-5[1m]", effort: high}
+    primary: {agent: claude, model: claude-fable-5-1, effort: medium}
+    fallback: {agent: claude, model: claude-opus-5-5, effort: high}
   engineer:
     primary: {agent: codex, model: gpt-6-sol, effort: high}
-    fallback: {agent: claude, model: "claude-opus-5-5[1m]", effort: high}
+    fallback: {agent: claude, model: claude-opus-5-5, effort: high}
   researcher:
     primary: {agent: codex, model: gpt-6-sol, effort: high}
-    fallback: {agent: claude, model: "claude-opus-5-5[1m]", effort: high}
+    fallback: {agent: claude, model: claude-opus-5-5, effort: high}
   reviewer:
     # Same-family routes permit independent review when the opposite family is unavailable.
     by_maker_family:
       openai:
-        primary: {agent: claude, model: "claude-fable-5-1[1m]", effort: medium}
-        fallback: {agent: claude, model: "claude-opus-5-5[1m]", effort: high}
+        primary: {agent: claude, model: claude-fable-5-1, effort: medium}
+        fallback: {agent: claude, model: claude-opus-5-5, effort: high}
         same_family_fallback: {agent: codex, model: gpt-6-astra, effort: high}
       anthropic:
         primary: {agent: codex, model: gpt-6-astra, effort: high}
         fallback: {agent: codex, model: gpt-6-sol, effort: high}
-        same_family_fallback: {agent: claude, model: "claude-fable-5-1[1m]", effort: medium}
+        same_family_fallback: {agent: claude, model: claude-fable-5-1, effort: medium}
 
 # Used only when HARD/CRITICAL justifies independent solution lanes.
 competition:
@@ -36,7 +36,7 @@ competition:
       primary: {agent: codex, model: gpt-6-sol, effort: high}
       fallback: {agent: codex, model: gpt-6-astra, effort: high}
     alternate_family:
-      primary: {agent: claude, model: "claude-opus-5-5[1m]", effort: high}
-      fallback: {agent: claude, model: "claude-fable-5-1[1m]", effort: medium}
+      primary: {agent: claude, model: claude-opus-5-5, effort: high}
+      fallback: {agent: claude, model: claude-fable-5-1, effort: medium}
 
 revision_rounds: 2
