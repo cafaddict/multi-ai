@@ -126,20 +126,19 @@ the host overrides and prints the flags for one `worker-start`:
 
 ```sh
 multi-ai-cli route architect
-# --agent claude --model claude-fable-5-1 --effort medium
-
-orca orchestration worker-start $(multi-ai-cli route engineer) --role engineer
+# --agent claude --model 'claude-fable-5-1[1m]' --effort medium
 ```
 
 Because it reads the policy from disk on every call, editing the policy mid-session
 reaches the next worker. Reviewer routes are keyed by the family that wrote the
 change, so they need `--maker-family`.
 
-Every model id in the shipped policy is a plain word, so the flags can be pasted or
-substituted as they are. `route` still single-quotes an id containing anything a
-shell would rewrite, such as a bracketed `[1m]` context tag. Quoting survives a
-paste but not an unquoted `$( )`, which does not re-parse it, so read the id from
-`--json` when a route is being consumed by a script rather than a command line.
+Paste the flags into the `worker-start` command. A model id can carry a bracketed
+context tag such as `[1m]`, which is a glob pattern to a shell, so `route` quotes
+any id a shell would otherwise rewrite. Pasted into sh or PowerShell the quotes do
+their job and disappear; an unquoted `$(multi-ai-cli route ...)` does **not**
+re-parse them and passes the quotes through as part of the model id. Use `eval` if
+you want substitution, or take the id from `--json`.
 
 `route` resolves; it never decides availability. A provider that is rate-limited or
 down only shows up when `worker-start` fails, so stepping down the ladder stays the
@@ -150,7 +149,7 @@ family outage leaves with `--ladder`:
 multi-ai-cli route reviewer --maker-family anthropic --ladder
 # primary               --agent codex --model gpt-6-astra --effort high
 # fallback              --agent codex --model gpt-6-sol --effort high
-# same_family_fallback  --agent claude --model claude-fable-5-1 --effort medium   # same family as the maker
+# same_family_fallback  --agent claude --model 'claude-fable-5-1[1m]' --effort medium   # same family as the maker
 ```
 
 A rung that is not the primary, or that puts the reviewer in the maker's own family,
@@ -159,7 +158,7 @@ still captures only the flags:
 
 ```sh
 multi-ai-cli route reviewer --maker-family anthropic --step same_family_fallback
-# --agent claude --model claude-fable-5-1 --effort medium
+# --agent claude --model 'claude-fable-5-1[1m]' --effort medium
 # ...and on stderr:
 # # Not the primary route. Use it only after confirmed unavailability, and record the substitution.
 # # Same family as the maker. Cross-family review independence is lost.
@@ -177,7 +176,7 @@ Or inspect and change any supported policy leaf directly:
 multi-ai-cli show
 multi-ai-cli get roles.engineer.primary.model
 multi-ai-cli set roles.engineer.primary.agent claude
-multi-ai-cli set roles.engineer.primary.model claude-opus-5-5
+multi-ai-cli set roles.engineer.primary.model 'claude-opus-5-5[1m]'
 multi-ai-cli set roles.engineer.primary.effort high
 ```
 

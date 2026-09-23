@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parse, stringify } from 'yaml';
 
-const VERSION = '0.7.1';
+const VERSION = '0.7.2';
 const AGENTS = ['codex', 'claude'];
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
 const CODEX_RULE_MARKER = '# Managed by multi-ai-cli.';
