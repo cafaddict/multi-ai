@@ -101,7 +101,9 @@ When competition is justified, prepare the briefs with [competition.md](prompts/
 
 Context may inherit. Intelligence configuration should be explicit.
 Resolve each route with `multi-ai-cli route <target>` immediately before its
-worker-start and pass the stdout verbatim; the command lists its own targets. It
+worker-start and paste the stdout verbatim; the command lists its own targets. It
+quotes any model id a shell would rewrite, such as a bracketed `[1m]` context tag,
+so do not re-split that output or strip its quoting. It
 merges the installed policy with the host overrides, so a policy edit reaches the
 next worker. Never reuse a route resolved earlier in the session and never
 hand-assemble one from policy.yaml; a stale or retyped route is a routing error.

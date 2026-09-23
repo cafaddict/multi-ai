@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parse, stringify } from 'yaml';
 
-const VERSION = '0.6.0';
+const VERSION = '0.7.0';
 const AGENTS = ['codex', 'claude'];
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
 const CODEX_RULE_MARKER = '# Managed by multi-ai-cli.';
@@ -485,8 +485,14 @@ function setEngineerFamily(family) {
   console.log(`Host policy: ${configPath}`);
 }
 
+const SHELL_UNSAFE = /[^A-Za-z0-9._\/:=-]/;
+
+function shellQuote(value) {
+  return SHELL_UNSAFE.test(value) ? `'${value.replaceAll("'", String.raw`'\''`)}'` : value;
+}
+
 function routeFlags(route) {
-  return `--agent ${route.agent} --model ${route.model} --effort ${route.effort}`;
+  return `--agent ${route.agent} --model ${shellQuote(route.model)} --effort ${route.effort}`;
 }
 
 function routeGroupPath(target, makerFamily) {
